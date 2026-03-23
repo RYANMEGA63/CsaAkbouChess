@@ -199,6 +199,7 @@ alter table tournaments add column if not exists podium_1 text;
 alter table tournaments add column if not exists podium_2 text;
 alter table tournaments add column if not exists podium_3 text;
 alter table tournaments add column if not exists date_iso date;
+alter table tournaments add column if not exists registrations_closed boolean default false;
 
 -- ── Nouvelles clés de config ──────────────────────────────────────
 insert into site_config (key, value) values

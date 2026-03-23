@@ -40,15 +40,33 @@ export function useTournaments() {
 
   useEffect(() => { fetch() }, [fetch])
 
+  // Colonnes connues de la table tournaments dans Supabase.
+  // Tout champ absent de cette liste est ignoré avant INSERT/UPDATE
+  // pour éviter les erreurs "column does not exist" lors des migrations progressives.
+  const safeTournamentPayload = (t: Partial<Tournament>) => {
+    const KNOWN_COLS = [
+      'title','date','date_iso','cadence','type','rounds','location',
+      'spots','total','description','price','arbitre','homologue','niveaux','contact',
+      'fiches_techniques_urls','photos_urls','is_past','winner','participants',
+      'winner_medal','winner_note','podium_1','podium_2','podium_3',
+      'display_order','registrations_closed',
+    ]
+    return Object.fromEntries(
+      Object.entries(t).filter(([k]) => KNOWN_COLS.includes(k))
+    )
+  }
+
   const create = async (t: Omit<Tournament, 'id' | 'created_at' | 'updated_at'>) => {
-    const { data: row, error: err } = await supabase.from('tournaments').insert(t).select().single()
+    const payload = safeTournamentPayload(t)
+    const { data: row, error: err } = await supabase.from('tournaments').insert(payload).select().single()
     if (err) throw err
     setData(prev => [row, ...prev])
     return row
   }
 
   const update = async (id: string, t: Partial<Tournament>) => {
-    const { data: row, error: err } = await supabase.from('tournaments').update(t).eq('id', id).select().single()
+    const payload = safeTournamentPayload(t)
+    const { data: row, error: err } = await supabase.from('tournaments').update(payload).eq('id', id).select().single()
     if (err) throw err
     setData(prev => prev.map(x => x.id === id ? row : x))
     return row

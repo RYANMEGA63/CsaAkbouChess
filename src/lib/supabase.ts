@@ -40,6 +40,7 @@ export interface Tournament {
   podium_1?: string    // 1ère place
   podium_2?: string    // 2ème place
   podium_3?: string    // 3ème place
+  registrations_closed?: boolean  // inscriptions clôturées manuellement
   display_order: number
   created_at: string
   updated_at: string

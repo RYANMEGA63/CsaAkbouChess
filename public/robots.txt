@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /gestion-csa-2025
+Disallow: /admin
+
+Sitemap: https://csa-akbou-chess.vercel.app/sitemap.xml

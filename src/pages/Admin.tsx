@@ -3,8 +3,9 @@ import { Link } from "react-router-dom"
 import {
   Plus, Pencil, Trash2, X, Save, ImagePlus, Eye,
   Trophy, LogOut, ChevronDown, ChevronUp, FileImage,
-  Settings, Image, Megaphone, Users, Loader2,
-  LayoutDashboard, ClipboardList, UserCheck, Building2, Calendar, Search
+  Settings, Image, Megaphone, Loader2,
+  LayoutDashboard, ClipboardList, UserCheck, Building2, Calendar, Search,
+  BarChart2, Globe, TrendingUp, Lock, Unlock
 } from "lucide-react"
 import { useAuth, useTournaments, usePosts, useGallery, useRegistrations, Registration } from "@/hooks/useSupabase"
 import { useSiteConfig } from "@/lib/SiteConfigContext"
@@ -89,7 +90,7 @@ const LoginScreen = ({ onLogin, clubName, isLockedOut, lockoutMinutes }: {
               {error && <p className="text-xs text-red-500 mt-1.5 font-medium">{error}</p>}
             </div>
             <button onClick={submit} disabled={loading}
-              className="w-full rounded-xl py-2.5 font-semibold text-sm text-white disabled:opacity-60 flex items-center justify-center gap-2"
+              className="w-full rounded-xl py-3 font-semibold text-sm text-white disabled:opacity-60 flex items-center justify-center gap-2"
               style={{ background: "linear-gradient(135deg, hsl(var(--chess-gold-dark)), hsl(var(--chess-gold)))" }}>
               {loading && <Loader2 size={14} className="animate-spin" />}
               Se connecter
@@ -124,6 +125,172 @@ const ConnectionBanner = ({ status, onRetry }: { status: string; onRetry: () => 
   )
 }
 
+// ── Analytics (tracking côté client via localStorage) ────────────
+interface VisitEntry { ts: number; path: string; country: string; uid: string }
+
+function useAnalytics() {
+  const [stats, setStats] = useState<{
+    total: number; unique: number; today: number; todayUnique: number
+    byCountry: { name: string; count: number }[]
+    byDay: { date: string; visits: number }[]
+  } | null>(null)
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('site_visits')
+      const visits: VisitEntry[] = raw ? JSON.parse(raw) : []
+
+      const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000
+      const pruned = visits.filter(v => v.ts > cutoff)
+
+      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+      const todayVisits = pruned.filter(v => v.ts >= todayStart.getTime())
+
+      const cMap: Record<string, number> = {}
+      pruned.forEach(v => { cMap[v.country] = (cMap[v.country] || 0) + 1 })
+      const byCountry = Object.entries(cMap)
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count).slice(0, 6)
+
+      const days7: Record<string, number> = {}
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0, 0, 0, 0)
+        days7[d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })] = 0
+      }
+      pruned.filter(v => v.ts >= Date.now() - 7 * 24 * 60 * 60 * 1000).forEach(v => {
+        const key = new Date(v.ts).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+        if (key in days7) days7[key]++
+      })
+
+      setStats({
+        total: pruned.length,
+        unique: new Set(pruned.map(v => v.uid)).size,
+        today: todayVisits.length,
+        todayUnique: new Set(todayVisits.map(v => v.uid)).size,
+        byCountry,
+        byDay: Object.entries(days7).map(([date, visits]) => ({ date, visits })),
+      })
+    } catch {}
+  }, [])
+
+  return stats
+}
+
+// ── Tracker : à appeler sur chaque page publique (non-admin) ─────
+// Exporté pour être utilisé dans les pages si besoin
+export function trackPageVisit() {
+  try {
+    const visits: VisitEntry[] = JSON.parse(localStorage.getItem('site_visits') || '[]')
+    let uid = localStorage.getItem('visitor_uid')
+    if (!uid) { uid = crypto.randomUUID(); localStorage.setItem('visitor_uid', uid) }
+
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''
+    const lang = navigator.language || ''
+    const country =
+      tz.includes('Africa/Algiers') || tz.includes('Africa/Tunis') ? '🇩🇿 Algérie' :
+      tz.includes('Europe/Paris') || tz.includes('Europe/Brussels') ? '🇫🇷 France' :
+      tz.includes('Europe/London') ? '🇬🇧 Royaume-Uni' :
+      tz.includes('Europe/') ? '🌍 Europe' :
+      lang.startsWith('ar') ? '🌍 Monde arabe' :
+      lang.startsWith('fr') ? '🌍 Francophonie' : '🌐 Autre'
+
+    visits.push({ ts: Date.now(), path: location.pathname, country, uid })
+    const pruned = visits.filter(v => v.ts > Date.now() - 30 * 24 * 60 * 60 * 1000)
+    localStorage.setItem('site_visits', JSON.stringify(pruned))
+  } catch {}
+}
+
+// ── DASHBOARD ANALYTICS WIDGET ────────────────────────────────────
+const AnalyticsWidget = () => {
+  const stats = useAnalytics()
+
+  if (!stats) return (
+    <div className="bg-card border rounded-2xl p-5 shadow-sm flex items-center justify-center h-32">
+      <Loader2 size={22} className="animate-spin text-muted-foreground" />
+    </div>
+  )
+
+  const maxDay = Math.max(...stats.byDay.map(d => d.visits), 1)
+
+  return (
+    <div className="bg-card border rounded-2xl p-5 shadow-sm space-y-5">
+      <div className="flex items-center gap-2">
+        <BarChart2 size={16} style={{ color: "hsl(var(--chess-blue))" }} />
+        <h3 className="font-semibold text-sm">Audience du site</h3>
+        <span className="text-xs text-muted-foreground font-normal">— 30 derniers jours</span>
+      </div>
+
+      {/* Métriques */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Visites totales",    value: stats.total,       sub: `+${stats.today} aujourd'hui`,              color: "hsl(var(--chess-blue))" },
+          { label: "Visiteurs uniques",  value: stats.unique,      sub: `+${stats.todayUnique} aujourd'hui`,        color: "hsl(var(--chess-gold-dark))" },
+          { label: "Aujourd'hui",        value: stats.today,       sub: `${stats.todayUnique} unique${stats.todayUnique > 1 ? 's' : ''}`, color: "hsl(var(--chess-blue))" },
+          { label: "Pays détectés",      value: stats.byCountry.length, sub: stats.byCountry[0]?.name || '—',       color: "#10b981" },
+        ].map(s => (
+          <div key={s.label} className="bg-muted/30 rounded-xl p-3 space-y-1">
+            <p className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
+            <p className="text-xs font-medium">{s.label}</p>
+            <p className="text-[10px] text-muted-foreground truncate">{s.sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Graphique 7 jours */}
+      <div>
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-1.5">
+          <TrendingUp size={11} /> Visites — 7 derniers jours
+        </p>
+        <div className="flex items-end gap-1.5 h-24">
+          {stats.byDay.map(d => (
+            <div key={d.date} className="flex-1 flex flex-col items-center gap-1">
+              <span className="text-[9px] font-semibold text-muted-foreground">{d.visits > 0 ? d.visits : ''}</span>
+              <div className="w-full rounded-t-md transition-all" style={{
+                height: `${Math.max((d.visits / maxDay) * 56, d.visits > 0 ? 4 : 2)}px`,
+                background: d.visits > 0 ? "hsl(var(--chess-blue)/0.75)" : "hsl(var(--muted))"
+              }} />
+              <span className="text-[9px] text-muted-foreground text-center leading-tight">{d.date}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Provenance */}
+      {stats.byCountry.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+            <Globe size={11} /> Provenance
+          </p>
+          <div className="space-y-2">
+            {stats.byCountry.map(c => (
+              <div key={c.name} className="flex items-center gap-2">
+                <span className="text-xs w-36 truncate font-medium">{c.name}</span>
+                <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all" style={{
+                    width: `${Math.round((c.count / stats.total) * 100)}%`,
+                    background: "linear-gradient(90deg, hsl(var(--chess-blue)), hsl(var(--chess-gold)))"
+                  }} />
+                </div>
+                <span className="text-xs text-muted-foreground w-6 text-right font-medium">{c.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {stats.total === 0 && (
+        <p className="text-xs text-muted-foreground text-center py-2">
+          Aucune visite enregistrée dans ce navigateur pour les 30 derniers jours.
+        </p>
+      )}
+
+      <p className="text-[10px] text-muted-foreground border-t pt-2">
+        ⓘ Basé sur les visites enregistrées dans le localStorage de ce navigateur.
+      </p>
+    </div>
+  )
+}
+
 // ── Calcul automatique du statut selon la date ───────────────────
 function getTournamentStatus(t: Tournament): 'bientot' | 'en_cours' | 'finis' {
   if (t.is_past) return 'finis'
@@ -137,9 +304,9 @@ function getTournamentStatus(t: Tournament): 'bientot' | 'en_cours' | 'finis' {
 }
 
 const STATUS_LABELS = {
-  bientot:  { label: 'Bientôt',  cls: 'bg-blue-100 text-blue-700' },
-  en_cours: { label: 'En cours', cls: 'bg-green-100 text-green-700' },
-  finis:    { label: 'Finis',    cls: 'bg-gray-100 text-gray-500' },
+  bientot:  { label: 'Bientôt',      cls: 'bg-blue-100 text-blue-700' },
+  en_cours: { label: "Aujourd'hui",  cls: 'bg-green-100 text-green-700' },
+  finis:    { label: 'Finis',        cls: 'bg-gray-100 text-gray-500' },
 }
 
 // ── TOURNAMENT FORM ───────────────────────────────────────────────
@@ -149,7 +316,8 @@ const emptyT = (): Omit<Tournament, 'id' | 'created_at' | 'updated_at'> => ({
   arbitre: "", homologue: false, niveaux: "", contact: "",
   fiches_techniques_urls: [], photos_urls: [],
   is_past: false, display_order: 0,
-  podium_1: "", podium_2: "", podium_3: ""
+  podium_1: "", podium_2: "", podium_3: "",
+  registrations_closed: false,
 })
 
 const TournamentForm = ({ initial, onSave, onClose }: {
@@ -169,7 +337,8 @@ const TournamentForm = ({ initial, onSave, onClose }: {
     is_past: initial.is_past, display_order: initial.display_order || 0,
     winner: initial.winner || "", participants: initial.participants || 0,
     winner_medal: initial.winner_medal || "", winner_note: initial.winner_note || "",
-    podium_1: initial.podium_1 || "", podium_2: initial.podium_2 || "", podium_3: initial.podium_3 || ""
+    podium_1: initial.podium_1 || "", podium_2: initial.podium_2 || "", podium_3: initial.podium_3 || "",
+    registrations_closed: initial.registrations_closed || false,
   } : { ...emptyT(), winner: "", participants: 0, winner_medal: "", winner_note: "" })
   const [saving, setSaving] = useState(false)
   const fichesRef = useRef<HTMLInputElement>(null)
@@ -218,20 +387,23 @@ const TournamentForm = ({ initial, onSave, onClose }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-card w-full max-w-2xl max-h-[92vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between px-6 py-4 border-b shrink-0"
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-card w-full sm:max-w-2xl max-h-[96vh] sm:max-h-[92vh] rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b shrink-0"
           style={{ background: "linear-gradient(135deg, hsl(var(--chess-blue-dark)), hsl(var(--chess-blue)))" }}>
-          <h2 className="font-bold text-lg text-white">{initial ? `Modifier — ${initial.title}` : "Nouveau tournoi"}</h2>
-          <button onClick={onClose} className="text-white/60 hover:text-white"><X size={20} /></button>
+          <div>
+            <h2 className="font-bold text-base text-white">{initial ? `Modifier — ${initial.title}` : "Nouveau tournoi"}</h2>
+            <p className="text-white/50 text-xs mt-0.5">Renseignez les champs et enregistrez</p>
+          </div>
+          <button onClick={onClose} className="text-white/60 hover:text-white p-1"><X size={20} /></button>
         </div>
 
-        <div className="overflow-y-auto flex-1 p-6 space-y-5">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2"><label className={labelCls}>Titre *</label><input className={inputCls} value={form.title} onChange={e => set('title', e.target.value)} /></div>
+        <div className="overflow-y-auto flex-1 p-4 sm:p-6 space-y-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="col-span-1 sm:col-span-2"><label className={labelCls}>Titre *</label><input className={inputCls} value={form.title} onChange={e => set('title', e.target.value)} /></div>
 
             {/* Date avec date picker + label auto */}
-            <div className="col-span-2">
+            <div className="col-span-1 sm:col-span-2">
               <label className={labelCls}>Date *</label>
               <div className="flex gap-2">
                 <input
@@ -255,7 +427,7 @@ const TournamentForm = ({ initial, onSave, onClose }: {
             <div><label className={labelCls}>Cadence</label><input className={inputCls} value={form.cadence} onChange={e => set('cadence', e.target.value)} placeholder="3+2" /></div>
             <div><label className={labelCls}>Rondes</label><input type="number" className={inputCls} value={form.rounds} onChange={e => set('rounds', +e.target.value)} /></div>
             <div><label className={labelCls}>Niveaux</label><input className={inputCls} value={form.niveaux} onChange={e => set('niveaux', e.target.value)} placeholder="Tous niveaux" /></div>
-            <div className="col-span-2"><label className={labelCls}>Lieu</label><input className={inputCls} value={form.location} onChange={e => set('location', e.target.value)} /></div>
+            <div className="col-span-1 sm:col-span-2"><label className={labelCls}>Lieu</label><input className={inputCls} value={form.location} onChange={e => set('location', e.target.value)} /></div>
             <div><label className={labelCls}>Ordre d'affichage</label><input type="number" className={inputCls} value={form.display_order} onChange={e => set('display_order', +e.target.value)} /></div>
             <div className="flex items-center gap-2 pt-4">
               <input type="checkbox" id="hom" checked={form.homologue} onChange={e => set('homologue', e.target.checked)} className="w-4 h-4 accent-primary" />
@@ -264,6 +436,19 @@ const TournamentForm = ({ initial, onSave, onClose }: {
           </div>
 
           <div><label className={labelCls}>Description</label><textarea className={`${inputCls} min-h-[80px] resize-y`} value={form.description} onChange={e => set('description', e.target.value)} /></div>
+
+          {/* Clôture des inscriptions */}
+          <div className={`rounded-xl border-2 p-4 transition-all ${form.registrations_closed ? 'border-red-300 bg-red-50/50' : 'border-border'}`}>
+            <div className="flex items-center gap-3 mb-1">
+              <input type="checkbox" id="regClosed" checked={form.registrations_closed} onChange={e => set('registrations_closed', e.target.checked)} className="w-4 h-4 accent-red-500" />
+              <label htmlFor="regClosed" className="text-sm font-semibold cursor-pointer flex items-center gap-2">
+                🔒 Clôturer les inscriptions
+              </label>
+            </div>
+            <p className="text-xs text-muted-foreground ml-7">
+              Le bouton d'inscription sera remplacé par un message "Inscriptions clôturées" sur le site.
+            </p>
+          </div>
 
           {/* Marquer comme finis */}
           <div className="rounded-xl border-2 p-4 transition-all" style={{
@@ -280,7 +465,7 @@ const TournamentForm = ({ initial, onSave, onClose }: {
               <div className="space-y-3 mt-4 pt-4 border-t">
                 {/* Podium */}
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Podium</p>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className={labelCls}>🥇 1ère place</label>
                     <input className={inputCls} placeholder="Nom du joueur" value={form.podium_1} onChange={e => set('podium_1', e.target.value)} />
@@ -325,7 +510,7 @@ const TournamentForm = ({ initial, onSave, onClose }: {
           </div>
         </div>
 
-        <div className="flex gap-3 px-6 py-4 border-t bg-muted/10 shrink-0">
+        <div className="flex gap-3 px-4 sm:px-6 py-4 border-t bg-muted/10 shrink-0">
           <button onClick={onClose} className="flex-1 border rounded-xl py-2.5 text-sm font-medium hover:bg-muted transition-colors">Annuler</button>
           <button onClick={handleSave} disabled={saving}
             className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-60"
@@ -601,7 +786,7 @@ const ConfigField = ({ k, label, multiline = false, vals, onChange, onSave, savi
 
 interface ImgFieldProps { k: string; label: string; vals: Record<string, string>; onSaveImg: (k: string, file: File) => void; saving: string | null; fileRef: React.RefObject<HTMLInputElement> }
 const ConfigImgField = ({ k, label, vals, onSaveImg, saving, fileRef }: ImgFieldProps) => (
-  <div className="bg-card border rounded-xl p-4 shadow-sm col-span-2">
+  <div className="bg-card border rounded-xl p-4 shadow-sm col-span-1 sm:col-span-2">
     <label className={labelCls}>{label}</label>
     <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => { if (e.target.files?.[0]) onSaveImg(k, e.target.files[0]) }} />
     <div className="flex items-center gap-3 mt-1">
@@ -748,10 +933,10 @@ const ConfigPanel = () => {
       <h2 className="text-lg font-bold">Contenu du site</h2>
       <p className="text-sm text-muted-foreground">Toutes les modifications sont instantanément visibles sur le site.</p>
 
-      <div className="flex flex-wrap gap-2 border-b pb-2">
+      <div className="flex overflow-x-auto gap-2 border-b pb-2 -mx-1 px-1 scrollbar-none">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setActiveTab(t.id as typeof activeTab)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${activeTab === t.id ? 'text-white' : 'text-muted-foreground hover:bg-muted'}`}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${activeTab === t.id ? 'text-white' : 'text-muted-foreground hover:bg-muted'}`}
             style={activeTab === t.id ? { background: "hsl(var(--chess-blue))" } : {}}>
             {t.label}
           </button>
@@ -775,7 +960,7 @@ const ConfigPanel = () => {
           <ConfigField {...fp} k="hero_subtitle"    label="Sous-titre hero" multiline />
 
           {/* Réseaux sociaux */}
-          <div className="col-span-2 bg-card border rounded-xl p-5 shadow-sm space-y-4">
+          <div className="col-span-1 sm:col-span-2 bg-card border rounded-xl p-5 shadow-sm space-y-4">
             <div>
               <h3 className="font-semibold text-sm mb-1">Réseaux sociaux</h3>
               <p className="text-xs text-muted-foreground">Laissez vide pour ne pas afficher. Entrez l'URL complète.</p>
@@ -1330,9 +1515,9 @@ const PostsPanel = ({ posts, filteredPosts, loading, pSearch, setPSearch, delete
             const tagBg  = parts[0]?.replace('bg:', '') || '#f3f4f6'
             const tagCol = parts[1]?.replace('text:', '') || '#374151'
             return (
-              <div key={p.id} className="bg-card border rounded-2xl shadow-sm p-4 flex items-start gap-4">
+              <div key={p.id} className="bg-card border rounded-2xl shadow-sm p-3 sm:p-4 flex items-start gap-3">
                 {p.images_urls?.[0] && (
-                  <img src={p.images_urls[0]} alt="" className="w-16 h-16 object-cover rounded-xl border shrink-0" />
+                  <img src={p.images_urls[0]} alt="" className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded-xl border shrink-0" />
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -1382,9 +1567,10 @@ interface TournamentsPanelProps {
   onEdit: (t: Tournament) => void
   onDelete: (id: string) => Promise<void>
   onNew: () => void
+  onToggleRegistrations: (t: Tournament) => Promise<void>
 }
 
-const TournamentsPanel = ({ allTournaments, loading, expandedId, setExpandedId, deleteConfirm, setDeleteConfirm, onEdit, onDelete, onNew }: TournamentsPanelProps) => {
+const TournamentsPanel = ({ allTournaments, loading, expandedId, setExpandedId, deleteConfirm, setDeleteConfirm, onEdit, onDelete, onNew, onToggleRegistrations }: TournamentsPanelProps) => {
   const [subTab, setSubTab] = useState<'active' | 'past'>('active')
   const [search, setSearch] = useState('')
 
@@ -1420,13 +1606,13 @@ const TournamentsPanel = ({ allTournaments, loading, expandedId, setExpandedId, 
       </div>
 
       {/* Sous-onglets */}
-      <div className="flex gap-2 border-b pb-3">
+      <div className="flex overflow-x-auto gap-2 border-b pb-3 scrollbar-none">
         {([
           { id: 'active' as const, label: 'Bientôt & en cours', count: activeT.length },
           { id: 'past'   as const, label: 'Finis',              count: finishedT.length },
         ]).map(st => (
           <button key={st.id} onClick={() => { setSubTab(st.id); setSearch('') }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${subTab === st.id ? 'text-white shadow-sm' : 'text-muted-foreground hover:bg-muted'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap shrink-0 ${subTab === st.id ? 'text-white shadow-sm' : 'text-muted-foreground hover:bg-muted'}`}
             style={subTab === st.id ? { background: "hsl(var(--chess-blue))" } : {}}>
             {st.label}
             <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${subTab === st.id ? 'bg-white/20 text-white' : 'bg-muted-foreground/20 text-muted-foreground'}`}>
@@ -1451,7 +1637,7 @@ const TournamentsPanel = ({ allTournaments, loading, expandedId, setExpandedId, 
         <div className="space-y-3">
           {displayList.map(t => (
             <div key={t.id} className="bg-card border rounded-2xl shadow-sm overflow-hidden">
-              <div className="flex items-center gap-4 p-4">
+              <div className="flex items-start gap-3 p-4">
                 {t.fiches_techniques_urls?.[0] ? (
                   <div className="relative shrink-0">
                     <img src={t.fiches_techniques_urls[0]} alt="" className="w-14 h-14 object-cover rounded-xl border" />
@@ -1470,6 +1656,11 @@ const TournamentsPanel = ({ allTournaments, loading, expandedId, setExpandedId, 
                   <div className="flex items-center gap-2 flex-wrap text-xs mb-1">
                     <span className="bg-accent/10 text-accent px-2 py-0.5 rounded-full font-semibold">{t.type}</span>
                     {t.homologue && <span className="text-green-600 font-medium">✓ Homologué</span>}
+                    {t.registrations_closed && !t.is_past && (
+                      <span className="flex items-center gap-1 bg-red-50 text-red-600 px-2 py-0.5 rounded-full font-semibold">
+                        <Lock size={10} /> Inscriptions clôturées
+                      </span>
+                    )}
                     {(() => {
                       const s = getTournamentStatus(t)
                       const { label, cls } = STATUS_LABELS[s]
@@ -1479,10 +1670,21 @@ const TournamentsPanel = ({ allTournaments, loading, expandedId, setExpandedId, 
                   <p className="font-semibold text-sm truncate">{t.title}</p>
                   <p className="text-xs text-muted-foreground">{t.date}{t.location ? ` · ${t.location}` : ''}</p>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
+                <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
                   <button onClick={() => setExpandedId(expandedId === t.id ? null : t.id)} className="p-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors">
                     {expandedId === t.id ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
                   </button>
+                  {/* Bouton clôture/réouverture inscriptions (uniquement tournois non finis) */}
+                  {!t.is_past && (
+                    <button
+                      onClick={() => onToggleRegistrations(t)}
+                      title={t.registrations_closed ? "Rouvrir les inscriptions" : "Clôturer les inscriptions"}
+                      className={`p-2 rounded-lg transition-colors ${t.registrations_closed
+                        ? 'bg-red-50 text-red-500 hover:bg-red-100'
+                        : 'hover:bg-amber-50 hover:text-amber-600 text-muted-foreground'}`}>
+                      {t.registrations_closed ? <Lock size={15} /> : <Unlock size={15} />}
+                    </button>
+                  )}
                   <button onClick={() => onEdit(t)} className="p-2 rounded-lg hover:bg-primary/10 hover:text-primary text-muted-foreground transition-colors"><Pencil size={15} /></button>
                   {deleteConfirm === t.id ? (
                     <div className="flex gap-1">
@@ -1611,13 +1813,13 @@ const RegistrationsPanel = ({ allTournaments, allRegistrations, loading, deleteC
       </div>
 
       {/* Sous-nav */}
-      <div className="flex flex-wrap gap-2 border-b pb-3">
+      <div className="flex overflow-x-auto gap-2 border-b pb-3 scrollbar-none">
         {[
           { id: 'active' as const, label: 'Bientôt & en cours', count: activeTournaments.length },
           { id: 'history' as const, label: 'Historique (finis)', count: finishedTournaments.length },
         ].map(t => (
           <button key={t.id} onClick={() => setSubTab(t.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${subTab === t.id ? 'text-white shadow-sm' : 'text-muted-foreground hover:bg-muted'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap shrink-0 ${subTab === t.id ? 'text-white shadow-sm' : 'text-muted-foreground hover:bg-muted'}`}
             style={subTab === t.id ? { background: "hsl(var(--chess-blue))" } : {}}>
             {t.label}
             <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${subTab === t.id ? 'bg-white/20 text-white' : 'bg-muted-foreground/20 text-muted-foreground'}`}>{t.count}</span>
@@ -1661,8 +1863,8 @@ const RegistrationsPanel = ({ allTournaments, allRegistrations, loading, deleteC
                       {tournament.location && <><span>·</span><span>{tournament.location}</span></>}
                     </p>
                   </div>
-                  <div className="text-right shrink-0 ml-4">
-                    <p className="text-2xl font-bold" style={{ color: "hsl(var(--chess-blue))" }}>{regs.length}</p>
+                  <div className="text-right shrink-0 ml-2">
+                    <p className="text-xl sm:text-2xl font-bold" style={{ color: "hsl(var(--chess-blue))" }}>{regs.length}</p>
                     <p className="text-xs text-muted-foreground">inscription{regs.length > 1 ? 's' : ''}</p>
                   </div>
                 </div>
@@ -1883,6 +2085,12 @@ const Admin = () => {
     else await createT(data)
   }
 
+  const handleToggleRegistrations = async (t: Tournament) => {
+    const newValue = !t.registrations_closed
+    await updateT(t.id, { registrations_closed: newValue })
+    toast.success(newValue ? "Inscriptions clôturées 🔒" : "Inscriptions rouvertes ✅")
+  }
+
   const handleSavePost = async (data: Omit<Post, 'id' | 'created_at' | 'updated_at'>) => {
     if (editPost && editPost !== 'new') await updatePost(editPost.id, data)
     else await createPost(data)
@@ -1942,7 +2150,7 @@ const Admin = () => {
         </div>
       </header>
 
-      <div className="flex flex-1 max-w-6xl mx-auto w-full">
+      <div className="flex flex-col md:flex-row flex-1 max-w-6xl mx-auto w-full min-h-0">
         {/* Sidebar desktop */}
         <aside className="hidden md:flex flex-col w-52 p-4 shrink-0 border-r bg-card/50">
           {TABS.map(t => (
@@ -1959,10 +2167,10 @@ const Admin = () => {
         </aside>
 
         {/* Mobile tabs */}
-        <div className="md:hidden flex overflow-x-auto gap-1 p-2 border-b bg-card w-full shrink-0">
+        <div className="md:hidden flex overflow-x-auto gap-1 p-2 border-b bg-card w-full shrink-0 sticky top-16 z-30 scrollbar-none">
           {TABS.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${tab === t.id ? 'text-white' : 'text-muted-foreground hover:bg-muted'}`}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap shrink-0 transition-all ${tab === t.id ? 'text-white' : 'text-muted-foreground hover:bg-muted'}`}
               style={tab === t.id ? { background: "hsl(var(--chess-blue))" } : {}}>
               <t.icon size={13} />
               {t.label}
@@ -1970,20 +2178,20 @@ const Admin = () => {
           ))}
         </div>
 
-        <main className="flex-1 p-4 md:p-6 overflow-auto">
+        <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-auto min-w-0">
 
           {/* ── DASHBOARD ── */}
           {tab === 'dashboard' && (
             <div className="space-y-6">
               <h2 className="text-xl font-bold">Tableau de bord</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
                 {[
                   { label: "Tournois à venir", value: upcoming.length, color: "hsl(var(--chess-blue))" },
                   { label: "Tournois finis", value: past.length, color: "hsl(var(--chess-silver))" },
                   { label: "Inscriptions reçues", value: allRegistrations.length, color: "hsl(var(--chess-gold))" },
                 ].map(s => (
-                  <div key={s.label} className="bg-card border rounded-2xl p-5 shadow-sm">
-                    <p className="text-3xl font-bold" style={{ color: s.color }}>{s.value}</p>
+                  <div key={s.label} className="bg-card border rounded-2xl p-4 sm:p-5 shadow-sm">
+                    <p className="text-2xl sm:text-3xl font-bold" style={{ color: s.color }}>{s.value}</p>
                     <p className="text-xs text-muted-foreground mt-1">{s.label}</p>
                   </div>
                 ))}
@@ -2018,13 +2226,18 @@ const Admin = () => {
                     const regCount = allRegistrations.filter(r => r.tournament_id === t.id).length
                     return (
                       <div key={t.id} className="flex items-center justify-between py-2 border-b last:border-0 text-sm">
-                        <span className="truncate font-medium">{t.title}</span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="truncate font-medium">{t.title}</span>
+                          {t.registrations_closed && <Lock size={11} className="text-red-400 shrink-0" />}
+                        </div>
                         <span className="text-muted-foreground text-xs ml-2 shrink-0">{regCount} inscrit{regCount > 1 ? 's' : ''}</span>
                       </div>
                     )
                   })}
                 </div>
               </div>
+              {/* Analytics audience */}
+              <AnalyticsWidget />
             </div>
           )}
 
@@ -2052,6 +2265,7 @@ const Admin = () => {
               onEdit={setEditTournament}
               onDelete={removeT}
               onNew={() => setEditTournament('new')}
+              onToggleRegistrations={handleToggleRegistrations}
             />
           )}
 

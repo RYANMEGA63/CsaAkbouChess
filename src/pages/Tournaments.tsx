@@ -1,10 +1,28 @@
 import Layout from "@/components/Layout";
 import Reveal from "@/components/Reveal";
 import { useState, useMemo } from "react";
-import { Calendar, Clock, Users, MapPin, X, ChevronRight, UserPlus, Building2, Plus, Trash2, CheckCircle, FileImage, Loader2, Search, Trophy, ChevronLeft } from "lucide-react";
+import { Calendar, Clock, Users, MapPin, X, ChevronRight, UserPlus, Building2, Plus, Trash2, CheckCircle, FileImage, Loader2, Search, Trophy, ChevronLeft, Lock } from "lucide-react";
 import { useTournaments, submitRegistration } from "@/hooks/useSupabase";
 import { Tournament } from "@/lib/supabase";
 import { toast } from "sonner";
+
+// ── Statut automatique selon la date ─────────────────────────────
+function getTournamentStatus(t: Tournament): 'bientot' | 'aujourdhui' | 'finis' {
+  if (t.is_past) return 'finis'
+  if (!t.date_iso) return 'bientot'
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const d = new Date(t.date_iso); d.setHours(0, 0, 0, 0)
+  const diff = (d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+  if (diff < 0) return 'finis'
+  if (diff === 0) return 'aujourdhui'
+  return 'bientot'
+}
+
+const STATUS_STYLES = {
+  bientot:    { label: 'Bientôt',     cls: 'bg-blue-100 text-blue-700' },
+  aujourdhui: { label: "Aujourd'hui", cls: 'bg-green-100 text-green-700' },
+  finis:      { label: 'Terminé',     cls: 'bg-gray-100 text-gray-500'  },
+}
 
 // ── Lightbox ──────────────────────────────────────────────────────
 const Lightbox = ({ photos, index, onClose }: { photos: string[]; index: number; onClose: () => void }) => {
@@ -146,6 +164,10 @@ const TournamentModal = ({ tournament, onClose, onOpenLightbox }: {
                   </div>
                   {tournament.participants && <p className="text-xs text-muted-foreground">{tournament.participants} participants</p>}
                   {tournament.winner_note && <p className="text-xs text-muted-foreground italic">"{tournament.winner_note}"</p>}
+                </div>
+              ) : tournament.registrations_closed ? (
+                <div className="w-full rounded-xl py-3.5 font-bold text-sm flex items-center justify-center gap-2 border-2 border-red-200 bg-red-50 text-red-600">
+                  🔒 Inscriptions clôturées
                 </div>
               ) : (
                 <button onClick={() => setStep("form")}
@@ -349,8 +371,22 @@ const Tournaments = () => {
                           <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ background: "hsl(var(--chess-gold)/0.12)", color: "hsl(var(--chess-gold-dark))" }}>{t.type}</span>
                           <span className="text-xs text-muted-foreground flex items-center gap-1"><Calendar size={11} /> {t.date}</span>
                           {t.homologue && <span className="text-xs text-green-600 font-medium">✓ Homologué</span>}
+                          {t.registrations_closed && (
+                            <span className="flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-red-50 text-red-500">
+                              <Lock size={9} /> Inscriptions clôturées
+                            </span>
+                          )}
                         </div>
-                        <h3 className="text-base md:text-lg font-semibold group-hover:text-primary transition-colors leading-snug">{t.title}</h3>
+                        {/* Titre + badge statut côte à côte */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-base md:text-lg font-semibold group-hover:text-primary transition-colors leading-snug">{t.title}</h3>
+                          {(() => {
+                            const s = getTournamentStatus(t)
+                            if (s === 'finis') return null
+                            const { label, cls } = STATUS_STYLES[s]
+                            return <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold shrink-0 ${cls}`}>{label}</span>
+                          })()}
+                        </div>
                         {/* Infos compactes */}
                         <div className="mt-2 flex flex-wrap gap-2">
                           {[
@@ -368,7 +404,10 @@ const Tournaments = () => {
                       {/* CTA */}
                       <div className="shrink-0 self-center hidden sm:flex">
                         <span className="text-white rounded-xl px-3 py-2 text-xs md:text-sm font-semibold flex items-center gap-1.5 whitespace-nowrap"
-                          style={{ background: "linear-gradient(135deg, hsl(var(--chess-blue-dark)), hsl(var(--chess-blue)))" }}>
+                          style={{ background: t.registrations_closed
+                            ? "linear-gradient(135deg, #dc2626, #ef4444)"
+                            : "linear-gradient(135deg, hsl(var(--chess-blue-dark)), hsl(var(--chess-blue)))" }}>
+                          {t.registrations_closed && <Lock size={11} />}
                           Voir <ChevronRight size={13} />
                         </span>
                       </div>
