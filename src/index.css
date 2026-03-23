@@ -1,0 +1,140 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 218 22% 96%;
+    --foreground: 222 35% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 35% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 35% 10%;
+
+    --primary: 221 58% 20%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 215 18% 58%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 216 18% 90%;
+    --muted-foreground: 218 14% 46%;
+
+    --accent: 30 95% 52%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 216 20% 85%;
+    --input: 216 20% 88%;
+    --ring: 221 58% 20%;
+
+    --radius: 0.625rem;
+
+    --chess-blue:       221 58% 20%;
+    --chess-blue-mid:   221 48% 30%;
+    --chess-blue-light: 221 40% 42%;
+    --chess-blue-dark:  222 65% 12%;
+    --chess-gold:       30 95% 52%;
+    --chess-gold-light: 34 90% 64%;
+    --chess-gold-dark:  26 98% 40%;
+    --chess-silver:     215 18% 58%;
+    --chess-silver-light: 216 22% 78%;
+    --chess-silver-bg:  218 22% 96%;
+    --chess-cream-dark: 216 18% 90%;
+
+    --sidebar-background: 221 58% 20%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 30 95% 52%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 221 48% 30%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 221 48% 28%;
+    --sidebar-ring: 30 95% 52%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+
+  body { @apply bg-background text-foreground font-body antialiased; }
+
+  h1, h2, h3, h4, h5, h6 { @apply font-display; }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: hsl(var(--muted)); }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--chess-silver-light)); border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--chess-silver)); }
+}
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+  .text-pretty  { text-wrap: pretty; }
+
+  /* Gradient doré */
+  .gold-gradient {
+    background: linear-gradient(135deg, hsl(var(--chess-gold-dark)), hsl(var(--chess-gold)), hsl(var(--chess-gold-light)));
+  }
+
+  /* Gradient bleu */
+  .blue-gradient {
+    background: linear-gradient(135deg, hsl(var(--chess-blue-dark)), hsl(var(--chess-blue)), hsl(var(--chess-blue-mid)));
+  }
+
+  /* Glass */
+  .glass {
+    background: rgba(255,255,255,0.75);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,0.6);
+  }
+
+  /* Shine silver */
+  .silver-shimmer {
+    background: linear-gradient(120deg, hsl(var(--muted)) 0%, hsl(var(--chess-silver-light)) 50%, hsl(var(--muted)) 100%);
+  }
+
+  /* Accent glow */
+  .glow-accent {
+    box-shadow: 0 0 24px -4px hsl(var(--chess-gold) / 0.45);
+  }
+
+  /* Blue glow */
+  .glow-blue {
+    box-shadow: 0 8px 32px -8px hsl(var(--chess-blue) / 0.35);
+  }
+}
+
+/* ── Animations ── */
+@keyframes reveal-up {
+  from { opacity: 0; transform: translateY(28px); filter: blur(3px); }
+  to   { opacity: 1; transform: translateY(0);    filter: blur(0); }
+}
+@keyframes reveal-left {
+  from { opacity: 0; transform: translateX(-28px); filter: blur(3px); }
+  to   { opacity: 1; transform: translateX(0);     filter: blur(0); }
+}
+@keyframes reveal-right {
+  from { opacity: 0; transform: translateX(28px); filter: blur(3px); }
+  to   { opacity: 1; transform: translateX(0);    filter: blur(0); }
+}
+@keyframes reveal-scale {
+  from { opacity: 0; transform: scale(0.96); filter: blur(3px); }
+  to   { opacity: 1; transform: scale(1);    filter: blur(0); }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-8px); }
+}
+@keyframes pulse-gold {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
+}
+@keyframes shimmer-slide {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
