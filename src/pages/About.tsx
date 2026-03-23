@@ -7,25 +7,17 @@ import tournamentImage from "@/assets/tournament.jpg";
 const About = () => {
   const { get } = useSiteConfig();
 
-  const heroTitle      = String(get('about_hero_title',  'Un club forgé par la passion des 64 cases'));
-  const storyTitle     = String(get('about_story_title', 'Notre histoire'));
-  const storyParagraphs = (get('about_story_paragraphs', [
-    "L'Échiquier Royal a été fondé par un groupe de passionnés souhaitant créer un espace dédié à la pratique des échecs.",
-    "Au fil des décennies, le club a formé des centaines de joueurs et tissé des liens avec des clubs à travers l'Europe.",
-    "Aujourd'hui, nous sommes fiers de compter des membres actifs de tous niveaux.",
-  ]) as string[]);
-  const venueTitle     = String(get('about_venue_title',    'Un cadre exceptionnel'));
-  const venueSubtitle  = String(get('about_venue_subtitle', 'Notre salle'));
-  const venueText      = String(get('about_venue_text',     'Notre salle offre un environnement calme et propice à la concentration.'));
+  const heroTitle      = String(get('about_hero_title',  ''));
+  const storyTitle     = String(get('about_story_title', ''));
+  const storyParagraphs = (get('about_story_paragraphs', []) as string[]);
+  const venueTitle     = String(get('about_venue_title',    ''));
+  const venueSubtitle  = String(get('about_venue_subtitle', ''));
+  const venueText      = String(get('about_venue_text',     ''));
   const storyImageUrl  = get('about_story_image_url', null) as string | null;
   const venueImageUrl  = get('about_venue_image_url', null) as string | null;
-  const values         = (get('values', [
-    { title: "Transmission", desc: "Nous croyons que chaque joueur expérimenté a le devoir de transmettre son savoir aux plus jeunes." },
-    { title: "Fair-play",    desc: "Le respect de l'adversaire est au cœur de chaque partie. Gagner avec élégance, perdre avec dignité." },
-    { title: "Excellence",   desc: "Nous encourageons chaque membre à repousser ses limites et à viser la meilleure version de son jeu." },
-  ]) as { title: string; desc: string }[]);
-  const clubName = String(get('club_name', 'Échiquier Royal'));
-  const founded  = String(get('club_founded', '1987'));
+  const values         = (get('values', []) as { title: string; desc: string }[]);
+  const clubName = String(get('club_name', ''));
+  const founded  = String(get('club_founded', ''));
 
   return (
     <Layout>

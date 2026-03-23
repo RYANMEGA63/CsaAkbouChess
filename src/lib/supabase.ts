@@ -47,7 +47,7 @@ export interface Tournament {
 
 export interface Post {
   id: string
-  type: 'photo' | 'annonce' | 'resultat'
+  type: string            // libre — déterminé par les types personnalisés
   author: string
   author_role: string
   title?: string
@@ -58,6 +58,7 @@ export interface Post {
   likes: number
   published: boolean
   display_order: number
+  custom_date?: string
   created_at: string
   updated_at: string
 }

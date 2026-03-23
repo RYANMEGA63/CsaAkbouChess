@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { useSiteConfig } from "@/lib/SiteConfigContext";
+import logoClub from "@/assets/logo-club.jpg";
 
 const navLinks = [
   { label: "Accueil", path: "/" },
@@ -16,8 +17,8 @@ const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
   const { get } = useSiteConfig();
-  const clubName = String(get('club_name', 'Échiquier Royal'));
-  const clubSub  = String(get('club_subtitle', "Club d'échecs"));
+  const clubName = String(get('club_name', ''));
+  const clubSub  = String(get('club_subtitle', ""));
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 30);
@@ -40,9 +41,8 @@ const Navbar = () => {
 
         {/* Logo */}
         <Link to="/" className="flex items-center gap-3 group shrink-0">
-          <div className="relative w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xl overflow-hidden"
-            style={{ background: "linear-gradient(135deg, hsl(var(--chess-gold-dark)), hsl(var(--chess-gold)))" }}>
-            <span className="relative z-10 text-white drop-shadow">♚</span>
+          <div className="relative w-10 h-10 rounded-xl overflow-hidden shrink-0 shadow-md">
+            <img src={logoClub} alt="Logo" className="w-full h-full object-cover" />
           </div>
             <div className="hidden sm:block">
               <div className="text-base font-display font-bold text-white leading-tight tracking-tight">{clubName}</div>

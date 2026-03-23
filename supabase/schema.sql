@@ -15,13 +15,13 @@ create table if not exists site_config (
 
 -- Valeurs par défaut
 insert into site_config (key, value) values
-  ('club_name',        '"Échiquier Royal"'),
+  ('club_name',        '"CSA Akbou Chess"'),
   ('club_subtitle',    '"Club d''échecs"'),
   ('club_founded',     '"1987"'),
   ('club_description', '"Club d''échecs passionné depuis 1987. Rejoignez notre communauté de joueurs de tous niveaux."'),
-  ('club_address',     '"12 Rue de la Tour, 75016 Paris"'),
-  ('club_email',       '"contact@echiquier-royal.fr"'),
-  ('club_phone',       '"01 42 88 77 66"'),
+  ('club_address',     '""'),
+  ('club_email',       '""'),
+  ('club_phone',       '""'),
   ('club_members',     '"40+"'),
   ('club_teams',       '"2"'),
   ('schedule', '[
@@ -29,10 +29,10 @@ insert into site_config (key, value) values
     {"day": "Jeudi",  "hours": "18h – 21h"},
     {"day": "Samedi", "hours": "14h – 18h"}
   ]'),
-  ('hero_title',    '"Votre prochain coup commence ici"'),
-  ('hero_subtitle', '"Rejoignez l''Échiquier Royal et progressez dans un cadre convivial, que vous soyez débutant ou joueur confirmé."'),
-  ('about_title',   '"Un club forgé par la passion des 64 cases"'),
-  ('about_text',    '"L''Échiquier Royal a été fondé par un groupe de passionnés souhaitant créer un espace dédié à la pratique et à l''enseignement des échecs."'),
+  ('hero_title',    '""'),
+  ('hero_subtitle', '""'),
+  ('about_title',   '""'),
+  ('about_text',    '""'),
   ('values', '[
     {"title": "Transmission", "desc": "Nous croyons que chaque joueur expérimenté a le devoir de transmettre son savoir."},
     {"title": "Fair-play",    "desc": "Le respect de l''adversaire est au cœur de chaque partie."},
@@ -79,7 +79,7 @@ create table if not exists tournaments (
 -- ── Table : posts (réalisations / feed) ─────────────────────────
 create table if not exists posts (
   id          uuid primary key default uuid_generate_v4(),
-  type        text not null check (type in ('photo', 'annonce', 'resultat')),
+  type        text not null default 'annonce',
   author      text not null,
   author_role text default 'Membre',
   title       text,
@@ -90,9 +90,17 @@ create table if not exists posts (
   likes       int  default 0,
   published   boolean default true,
   display_order int default 0,
+  custom_date timestamptz,
   created_at  timestamptz default now(),
   updated_at  timestamptz default now()
 );
+
+-- Migration : supprimer la contrainte de type si elle existe + ajouter custom_date
+do $$ begin
+  alter table posts drop constraint if exists posts_type_check;
+  alter table posts add column if not exists custom_date timestamptz;
+exception when others then null;
+end $$;
 
 -- ── Table : registrations (inscriptions aux tournois) ───────────
 create table if not exists registrations (
@@ -166,13 +174,12 @@ create policy "auth write gallery"       on gallery       for all using (auth.ro
 
 -- ── Ajout des clés pour la page À propos ──────────────────────────
 insert into site_config (key, value) values
-  ('about_hero_title', '"Un club forgé par la passion des 64 cases"'),
+  ('about_hero_title', '""'),
   ('about_story_title', '"Notre histoire"'),
   ('about_story_paragraphs', '[
-    "L''Échiquier Royal a été fondé par un groupe de passionnés souhaitant créer un espace dédié à la pratique et à l''enseignement des échecs.",
-    "Au fil des décennies, le club a formé des centaines de joueurs, produit des champions régionaux et nationaux, et tissé des liens avec des clubs à travers toute l''Europe.",
-    "Aujourd''hui, nous sommes fiers de compter des membres actifs de tous niveaux, engagés en championnats et reconnus par la Fédération des Échecs."
-  ]'),
+    "''enseignement des échecs.",
+    "''Europe.",
+    "'),
   ('about_venue_title', '"Un cadre exceptionnel"'),
   ('about_venue_subtitle', '"Notre salle"'),
   ('about_venue_text', '"Notre salle de jeu offre un environnement calme et propice à la concentration, avec des échiquiers permanents, une bibliothèque spécialisée et un espace d''analyse équipé."'),
@@ -203,4 +210,22 @@ insert into site_config (key, value) values
     {"label": "Podiums équipe", "value": "2"},
     {"label": "Séances", "value": "42"}
   ]')
+on conflict (key) do nothing;
+
+-- ── Réseaux sociaux ──────────────────────────────────────────────
+insert into site_config (key, value) values
+  ('social_facebook',  '""'),
+  ('social_instagram', '""'),
+  ('social_whatsapp',  '""'),
+  ('social_youtube',   '""')
+on conflict (key) do nothing;
+
+-- ── Nouvelles clés manquantes ─────────────────────────────────────
+insert into site_config (key, value) values
+  ('club_tournaments_per_year', '"12"')
+on conflict (key) do nothing;
+
+-- ── Types de publications personnalisés ───────────────────────────
+insert into site_config (key, value) values
+  ('post_types', '[]')
 on conflict (key) do nothing;

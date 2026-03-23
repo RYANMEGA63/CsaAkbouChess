@@ -10,25 +10,26 @@ const Index = () => {
   const { data: gallery, loading: galleryLoading } = useGallery();
   const { get } = useSiteConfig();
 
-  const clubName    = String(get('club_name',    'Échiquier Royal'));
-  const heroTitle   = String(get('hero_title',   'Votre prochain coup commence ici'));
-  const heroSub     = String(get('hero_subtitle','Rejoignez le club et progressez dans un cadre convivial.'));
-  const founded     = String(get('club_founded', '1987'));
-  const members     = String(get('club_members', '40+'));
-  const teams       = String(get('club_teams',   '2'));
-  const aboutTitle  = String(get('about_title',  "L'excellence échiquéenne au cœur de la ville"));
-  const aboutText   = String(get('about_text',   ''));
-
-  const heroImageUrl = get('hero_image_url', null) as string | null;
+  // ── Config depuis Supabase — fallbacks vides ou neutres ────────
+  const clubName           = String(get('club_name',                ''));
+  const heroTitle          = String(get('hero_title',               ''));
+  const heroSub            = String(get('hero_subtitle',            ''));
+  const founded            = String(get('club_founded',             ''));
+  const members            = String(get('club_members',             ''));
+  const teams              = String(get('club_teams',               ''));
+  const aboutTitle         = String(get('about_hero_title',         ''));
+  const tournamentsPerYear = String(get('club_tournaments_per_year',''));
+  const heroImageUrl       = get('hero_image_url', null) as string | null;
   const presentationImageUrl = get('presentation_image_url', null) as string | null;
-  const currentYear = new Date().getFullYear();
-  const yearsExist  = currentYear - parseInt(founded);
 
-  const schedule = (get('schedule', [
-    { day: "Mardi", hours: "18h – 21h" },
-    { day: "Jeudi", hours: "18h – 21h" },
-    { day: "Samedi", hours: "14h – 18h" },
-  ]) as { day: string; hours: string }[]);
+  // Premier paragraphe de l'histoire comme texte court sur l'accueil
+  const storyParagraphs = get('about_story_paragraphs', []) as string[];
+  const aboutTextShort  = Array.isArray(storyParagraphs) ? (storyParagraphs[0] || '') : '';
+
+  const currentYear = new Date().getFullYear();
+  const yearsExist  = founded ? currentYear - parseInt(founded) : null;
+
+  const schedule = (get('schedule', []) as { day: string; hours: string }[]);
 
   return (
     <Layout>
@@ -47,26 +48,25 @@ const Index = () => {
         <div className="container relative z-10 py-32">
           <div className="max-w-3xl">
             <Reveal>
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-widest mb-6 border"
-                style={{ background: "hsl(var(--chess-gold)/0.12)", borderColor: "hsl(var(--chess-gold)/0.30)", color: "hsl(var(--chess-gold-light))" }}>
-                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "hsl(var(--chess-gold))" }} />
-                Club d'échecs depuis {founded}
-              </div>
+              {(clubName || founded) && (
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-widest mb-6 border"
+                  style={{ background: "hsl(var(--chess-gold)/0.12)", borderColor: "hsl(var(--chess-gold)/0.30)", color: "hsl(var(--chess-gold-light))" }}>
+                  <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "hsl(var(--chess-gold))" }} />
+                  {clubName}{founded ? ` — depuis ${founded}` : ''}
+                </div>
+              )}
             </Reveal>
             <Reveal delay={100}>
-              <h1 className="text-5xl font-bold leading-[1.08] text-white md:text-6xl lg:text-7xl text-balance mb-6">
-                {heroTitle.includes("commence") ? (
-                  <>
-                    {heroTitle.split("commence")[0]}commence<br />
-                    <span style={{ background: "linear-gradient(90deg, hsl(var(--chess-gold-light)), hsl(var(--chess-gold)))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                      {heroTitle.split("commence")[1] || "ici"}
-                    </span>
-                  </>
-                ) : heroTitle}
-              </h1>
+              {heroTitle && (
+                <h1 className="text-5xl font-bold leading-[1.08] text-white md:text-6xl lg:text-7xl text-balance mb-6">
+                  {heroTitle}
+                </h1>
+              )}
             </Reveal>
             <Reveal delay={180}>
-              <p className="text-lg text-white/60 leading-relaxed max-w-xl mb-10">{heroSub}</p>
+              {heroSub && (
+                <p className="text-lg text-white/60 leading-relaxed max-w-xl mb-10">{heroSub}</p>
+              )}
             </Reveal>
             <Reveal delay={260}>
               <div className="flex flex-wrap gap-4">
@@ -81,20 +81,30 @@ const Index = () => {
                 </Link>
               </div>
             </Reveal>
-            <Reveal delay={380}>
-              <div className="flex flex-wrap gap-8 mt-14">
-                {[
-                  { value: members, label: "Membres" },
-                  { value: `${yearsExist}`, label: "Ans d'existence" },
-                  { value: teams, label: "Équipes" },
-                ].map(s => (
-                  <div key={s.label} className="flex flex-col">
-                    <span className="text-3xl font-display font-bold" style={{ color: "hsl(var(--chess-gold))" }}>{s.value}</span>
-                    <span className="text-xs text-white/45 uppercase tracking-widest mt-0.5">{s.label}</span>
-                  </div>
-                ))}
-              </div>
-            </Reveal>
+            {(members || yearsExist || teams) && (
+              <Reveal delay={380}>
+                <div className="flex flex-wrap gap-8 mt-14">
+                  {members && (
+                    <div className="flex flex-col">
+                      <span className="text-3xl font-display font-bold" style={{ color: "hsl(var(--chess-gold))" }}>{members}</span>
+                      <span className="text-xs text-white/45 uppercase tracking-widest mt-0.5">Membres</span>
+                    </div>
+                  )}
+                  {yearsExist && (
+                    <div className="flex flex-col">
+                      <span className="text-3xl font-display font-bold" style={{ color: "hsl(var(--chess-gold))" }}>{yearsExist}</span>
+                      <span className="text-xs text-white/45 uppercase tracking-widest mt-0.5">Ans d'existence</span>
+                    </div>
+                  )}
+                  {teams && (
+                    <div className="flex flex-col">
+                      <span className="text-3xl font-display font-bold" style={{ color: "hsl(var(--chess-gold))" }}>{teams}</span>
+                      <span className="text-xs text-white/45 uppercase tracking-widest mt-0.5">Équipes</span>
+                    </div>
+                  )}
+                </div>
+              </Reveal>
+            )}
           </div>
         </div>
         <div className="absolute bottom-0 left-0 right-0 h-16 pointer-events-none"
@@ -109,35 +119,47 @@ const Index = () => {
               <div className="relative">
                 <div className="absolute -inset-4 rounded-3xl opacity-20 blur-2xl pointer-events-none"
                   style={{ background: "linear-gradient(135deg, hsl(var(--chess-blue)), hsl(var(--chess-gold)))" }} />
-                <img src={presentationImageUrl || tournamentImage} alt="Tournoi" className="relative rounded-2xl shadow-2xl w-full object-cover" style={{ aspectRatio: "4/3" }} />
-                <div className="absolute -bottom-5 -right-5 rounded-2xl px-5 py-3 shadow-xl"
-                  style={{ background: "linear-gradient(135deg, hsl(var(--chess-gold-dark)), hsl(var(--chess-gold)))" }}>
-                  <span className="text-3xl font-display font-bold text-white">{yearsExist}</span>
-                  <span className="ml-1.5 text-sm text-white/80">ans d'existence</span>
-                </div>
+                <img src={presentationImageUrl || tournamentImage} alt="" className="relative rounded-2xl shadow-2xl w-full object-cover" style={{ aspectRatio: "4/3" }} />
+                {yearsExist && (
+                  <div className="absolute -bottom-5 -right-5 rounded-2xl px-5 py-3 shadow-xl"
+                    style={{ background: "linear-gradient(135deg, hsl(var(--chess-gold-dark)), hsl(var(--chess-gold)))" }}>
+                    <span className="text-3xl font-display font-bold text-white">{yearsExist}</span>
+                    <span className="ml-1.5 text-sm text-white/80">ans d'existence</span>
+                  </div>
+                )}
               </div>
             </Reveal>
             <Reveal direction="right">
               <div>
-                <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest mb-4 px-3 py-1.5 rounded-full"
-                  style={{ background: "hsl(var(--chess-gold)/0.1)", color: "hsl(var(--chess-gold-dark))" }}>
-                  Notre club
-                </div>
-                <h2 className="text-4xl font-bold leading-tight md:text-5xl text-balance mb-6">{aboutTitle}</h2>
-                {aboutText && <p className="text-muted-foreground leading-relaxed mb-8">{aboutText}</p>}
-                <div className="grid grid-cols-3 gap-4">
-                  {[
-                    { value: members, label: "Membres" },
-                    { value: "12", label: "Tournois/an" },
-                    { value: teams, label: "Équipes" },
-                  ].map(s => (
-                    <div key={s.label} className="rounded-xl border p-4 text-center"
-                      style={{ background: "hsl(var(--chess-blue)/0.04)", borderColor: "hsl(var(--chess-blue)/0.12)" }}>
-                      <p className="text-2xl font-display font-bold" style={{ color: "hsl(var(--chess-blue))" }}>{s.value}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{s.label}</p>
-                    </div>
-                  ))}
-                </div>
+                {aboutTitle && (
+                  <h2 className="text-4xl font-bold leading-tight md:text-5xl text-balance mb-6">{aboutTitle}</h2>
+                )}
+                {aboutTextShort && (
+                  <p className="text-muted-foreground leading-relaxed mb-8">{aboutTextShort}</p>
+                )}
+                {/* Stats */}
+                {(members || tournamentsPerYear || teams) && (
+                  <div className="grid grid-cols-3 gap-4">
+                    {members && (
+                      <div className="rounded-xl border p-4 text-center" style={{ background: "hsl(var(--chess-blue)/0.04)", borderColor: "hsl(var(--chess-blue)/0.12)" }}>
+                        <p className="text-2xl font-display font-bold" style={{ color: "hsl(var(--chess-blue))" }}>{members}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Membres</p>
+                      </div>
+                    )}
+                    {tournamentsPerYear && (
+                      <div className="rounded-xl border p-4 text-center" style={{ background: "hsl(var(--chess-blue)/0.04)", borderColor: "hsl(var(--chess-blue)/0.12)" }}>
+                        <p className="text-2xl font-display font-bold" style={{ color: "hsl(var(--chess-blue))" }}>{tournamentsPerYear}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Tournois/an</p>
+                      </div>
+                    )}
+                    {teams && (
+                      <div className="rounded-xl border p-4 text-center" style={{ background: "hsl(var(--chess-blue)/0.04)", borderColor: "hsl(var(--chess-blue)/0.12)" }}>
+                        <p className="text-2xl font-display font-bold" style={{ color: "hsl(var(--chess-blue))" }}>{teams}</p>
+                        <p className="text-xs text-muted-foreground mt-1">Équipes</p>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Horaires */}
                 {Array.isArray(schedule) && schedule.length > 0 && (
@@ -167,17 +189,15 @@ const Index = () => {
         <div className="container relative">
           <Reveal>
             <div className="text-center mb-16">
-              <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest mb-4 px-3 py-1.5 rounded-full"
-                style={{ background: "hsl(var(--chess-gold)/0.15)", color: "hsl(var(--chess-gold-light))" }}>Avantages</div>
               <h2 className="text-4xl font-bold text-white md:text-5xl">Pourquoi nous rejoindre</h2>
             </div>
           </Reveal>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              { icon: Users,    title: "Communauté",  desc: "Joueurs de tous niveaux, du débutant au maître FIDE." },
-              { icon: Target,   title: "Progression", desc: "Cours hebdomadaires, analyses et coaching personnalisé." },
-              { icon: Trophy,   title: "Compétition", desc: "Tournois internes et championnats inter-clubs toute l'année." },
-              { icon: Calendar, title: "Événements",  desc: "Simultanées, soirées thématiques et rencontres conviviales." },
+              { icon: Users,    title: "Communauté",  desc: "Joueurs de tous niveaux, du débutant au maître." },
+              { icon: Target,   title: "Progression", desc: "Cours, analyses et coaching pour progresser." },
+              { icon: Trophy,   title: "Compétition", desc: "Tournois internes et championnats toute l'année." },
+              { icon: Calendar, title: "Événements",  desc: "Simultanées, soirées thématiques et rencontres." },
             ].map((item, i) => (
               <Reveal key={item.title} delay={i * 80}>
                 <div className="group rounded-2xl p-7 transition-all duration-300 hover:-translate-y-1 border"
@@ -219,7 +239,7 @@ const Index = () => {
           ) : gallery.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
               <Camera size={32} className="mx-auto mb-3 opacity-30" />
-              <p className="text-sm">Aucune photo dans la galerie.<br />Ajoutez-en depuis le panneau admin.</p>
+              <p className="text-sm">Aucune photo dans la galerie pour le moment.</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -232,10 +252,12 @@ const Index = () => {
                       <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"
                         style={{ background: "linear-gradient(to top, hsl(var(--chess-blue-dark)/0.7), transparent)" }} />
                     </div>
-                    <div className="px-3 py-2 bg-white">
-                      <p className="text-xs font-medium leading-tight line-clamp-1">{photo.caption}</p>
-                      <p className="text-[10px] mt-0.5" style={{ color: "hsl(var(--chess-silver))" }}>{photo.date_label}</p>
-                    </div>
+                    {(photo.caption || photo.date_label) && (
+                      <div className="px-3 py-2 bg-white">
+                        {photo.caption && <p className="text-xs font-medium leading-tight line-clamp-1">{photo.caption}</p>}
+                        {photo.date_label && <p className="text-[10px] mt-0.5" style={{ color: "hsl(var(--chess-silver))" }}>{photo.date_label}</p>}
+                      </div>
+                    )}
                   </div>
                 </Reveal>
               ))}
