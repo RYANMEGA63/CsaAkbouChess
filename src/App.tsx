@@ -7,6 +7,7 @@ import { SiteConfigProvider } from "@/lib/SiteConfigContext";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import { useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 import Index from "./pages/Index.tsx";
 import About from "./pages/About.tsx";
 import Tournaments from "./pages/Tournaments.tsx";
@@ -15,43 +16,49 @@ import Contact from "./pages/Contact.tsx";
 import Admin from "./pages/Admin.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
-// ── Route secrète admin ─────────────────────────────────────────
+// ── Route secrete admin ─────────────────────────────────────────────
 const ADMIN_ROUTE = "/gestion-csa-2025"
-
-// ── Tracker de visites localStorage ─────────────────────────────
-// Enregistre chaque changement de page (hors admin) dans localStorage
 const ADMIN_PATHS = [ADMIN_ROUTE]
 
+// ── Detection pays par timezone/langue ───────────────────────────
+function detectCountry(): string {
+  const tz   = Intl.DateTimeFormat().resolvedOptions().timeZone || ''
+  const lang = navigator.language || ''
+  if (tz.includes('Africa/Algiers') || tz.includes('Africa/Tunis')) return '🇩🇿 Algérie'
+  if (tz.includes('Europe/Paris') || tz.includes('Europe/Brussels'))  return '🇫🇷 France'
+  if (tz.includes('Europe/London'))  return '🇬🇧 Royaume-Uni'
+  if (tz.includes('Europe/'))        return '🌍 Europe'
+  if (lang.startsWith('ar'))         return '🌍 Monde arabe'
+  if (lang.startsWith('fr'))         return '🌍 Francophonie'
+  return '🌐 Autre'
+}
+
+// ── UID visiteur persiste dans localStorage ───────────────────────
+function getVisitorUid(): string {
+  try {
+    let uid = localStorage.getItem('visitor_uid')
+    if (!uid) { uid = crypto.randomUUID(); localStorage.setItem('visitor_uid', uid) }
+    return uid
+  } catch { return crypto.randomUUID() }
+}
+
+// ── Tracker de visites → Supabase ──────────────────────────────────
 function PageTracker() {
   const location = useLocation()
 
   useEffect(() => {
-    // Scroll to top à chaque changement de page
+    // Scroll to top a chaque changement de page
     window.scrollTo({ top: 0, behavior: 'instant' })
 
     // Ne pas tracker les pages admin
     if (ADMIN_PATHS.some(p => location.pathname.startsWith(p))) return
 
-    try {
-      interface VisitEntry { ts: number; path: string; country: string; uid: string }
-      const visits: VisitEntry[] = JSON.parse(localStorage.getItem('site_visits') || '[]')
-      let uid = localStorage.getItem('visitor_uid')
-      if (!uid) { uid = crypto.randomUUID(); localStorage.setItem('visitor_uid', uid) }
-
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''
-      const lang = navigator.language || ''
-      const country =
-        tz.includes('Africa/Algiers') || tz.includes('Africa/Tunis') ? '🇩🇿 Algérie' :
-        tz.includes('Europe/Paris') || tz.includes('Europe/Brussels') ? '🇫🇷 France' :
-        tz.includes('Europe/London') ? '🇬🇧 Royaume-Uni' :
-        tz.includes('Europe/') ? '🌍 Europe' :
-        lang.startsWith('ar') ? '🌍 Monde arabe' :
-        lang.startsWith('fr') ? '🌍 Francophonie' : '🌐 Autre'
-
-      visits.push({ ts: Date.now(), path: location.pathname, country, uid })
-      const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000
-      localStorage.setItem('site_visits', JSON.stringify(visits.filter(v => v.ts > cutoff)))
-    } catch {}
+    // Insertion en base — fire & forget, sans bloquer le rendu
+    supabase.from('page_views').insert({
+      path:    location.pathname,
+      country: detectCountry(),
+      uid:     getVisitorUid(),
+    }).then(() => {})
   }, [location.pathname])
 
   return null

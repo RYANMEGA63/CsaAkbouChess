@@ -9,7 +9,7 @@ import {
 } from "lucide-react"
 import { useAuth, useTournaments, usePosts, useGallery, useRegistrations, Registration } from "@/hooks/useSupabase"
 import { useSiteConfig } from "@/lib/SiteConfigContext"
-import { uploadFile, uploadMultiple, Tournament, Post } from "@/lib/supabase"
+import { supabase, uploadFile, uploadMultiple, Tournament, Post } from "@/lib/supabase"
 import { toast } from "sonner"
 import logoClub from "@/assets/logo-club.jpg"
 
@@ -125,86 +125,73 @@ const ConnectionBanner = ({ status, onRetry }: { status: string; onRetry: () => 
   )
 }
 
-// ── Analytics (tracking côté client via localStorage) ────────────
-interface VisitEntry { ts: number; path: string; country: string; uid: string }
-
+// ── Analytics (tracking via Supabase — table page_views) ─────────────
 function useAnalytics() {
   const [stats, setStats] = useState<{
     total: number; unique: number; today: number; todayUnique: number
     byCountry: { name: string; count: number }[]
     byDay: { date: string; visits: number }[]
   } | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('site_visits')
-      const visits: VisitEntry[] = raw ? JSON.parse(raw) : []
+    async function load() {
+      try {
+        const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+        const { data, error } = await supabase
+          .from('page_views')
+          .select('created_at, path, country, uid')
+          .gte('created_at', since30)
+          .order('created_at', { ascending: true })
 
-      const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000
-      const pruned = visits.filter(v => v.ts > cutoff)
+        if (error) throw error
+        const rows = data || []
 
-      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
-      const todayVisits = pruned.filter(v => v.ts >= todayStart.getTime())
+        const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
+        const todayRows = rows.filter(r => new Date(r.created_at) >= todayStart)
 
-      const cMap: Record<string, number> = {}
-      pruned.forEach(v => { cMap[v.country] = (cMap[v.country] || 0) + 1 })
-      const byCountry = Object.entries(cMap)
-        .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => b.count - a.count).slice(0, 6)
+        const cMap: Record<string, number> = {}
+        rows.forEach(r => { if (r.country) cMap[r.country] = (cMap[r.country] || 0) + 1 })
+        const byCountry = Object.entries(cMap)
+          .map(([name, count]) => ({ name, count }))
+          .sort((a, b) => b.count - a.count).slice(0, 6)
 
-      const days7: Record<string, number> = {}
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0, 0, 0, 0)
-        days7[d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })] = 0
+        const days7: Record<string, number> = {}
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(); d.setDate(d.getDate() - i); d.setHours(0, 0, 0, 0)
+          days7[d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })] = 0
+        }
+        const since7 = Date.now() - 7 * 24 * 60 * 60 * 1000
+        rows.filter(r => new Date(r.created_at).getTime() >= since7).forEach(r => {
+          const key = new Date(r.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+          if (key in days7) days7[key]++
+        })
+
+        setStats({
+          total: rows.length,
+          unique: new Set(rows.map(r => r.uid)).size,
+          today: todayRows.length,
+          todayUnique: new Set(todayRows.map(r => r.uid)).size,
+          byCountry,
+          byDay: Object.entries(days7).map(([date, visits]) => ({ date, visits })),
+        })
+      } catch {
+        setStats({ total: 0, unique: 0, today: 0, todayUnique: 0, byCountry: [], byDay: [] })
+      } finally {
+        setLoading(false)
       }
-      pruned.filter(v => v.ts >= Date.now() - 7 * 24 * 60 * 60 * 1000).forEach(v => {
-        const key = new Date(v.ts).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
-        if (key in days7) days7[key]++
-      })
-
-      setStats({
-        total: pruned.length,
-        unique: new Set(pruned.map(v => v.uid)).size,
-        today: todayVisits.length,
-        todayUnique: new Set(todayVisits.map(v => v.uid)).size,
-        byCountry,
-        byDay: Object.entries(days7).map(([date, visits]) => ({ date, visits })),
-      })
-    } catch {}
+    }
+    load()
   }, [])
 
-  return stats
+  return { stats, loading }
 }
 
-// ── Tracker : à appeler sur chaque page publique (non-admin) ─────
-// Exporté pour être utilisé dans les pages si besoin
-export function trackPageVisit() {
-  try {
-    const visits: VisitEntry[] = JSON.parse(localStorage.getItem('site_visits') || '[]')
-    let uid = localStorage.getItem('visitor_uid')
-    if (!uid) { uid = crypto.randomUUID(); localStorage.setItem('visitor_uid', uid) }
-
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''
-    const lang = navigator.language || ''
-    const country =
-      tz.includes('Africa/Algiers') || tz.includes('Africa/Tunis') ? '🇩🇿 Algérie' :
-      tz.includes('Europe/Paris') || tz.includes('Europe/Brussels') ? '🇫🇷 France' :
-      tz.includes('Europe/London') ? '🇬🇧 Royaume-Uni' :
-      tz.includes('Europe/') ? '🌍 Europe' :
-      lang.startsWith('ar') ? '🌍 Monde arabe' :
-      lang.startsWith('fr') ? '🌍 Francophonie' : '🌐 Autre'
-
-    visits.push({ ts: Date.now(), path: location.pathname, country, uid })
-    const pruned = visits.filter(v => v.ts > Date.now() - 30 * 24 * 60 * 60 * 1000)
-    localStorage.setItem('site_visits', JSON.stringify(pruned))
-  } catch {}
-}
-
-// ── DASHBOARD ANALYTICS WIDGET ────────────────────────────────────
+// ── DASHBOARD ANALYTICS WIDGET ───────────────────────────────────────────────
 const AnalyticsWidget = () => {
-  const stats = useAnalytics()
+  const { stats, loading } = useAnalytics()
 
-  if (!stats) return (
+  if (loading || !stats) return (
     <div className="bg-card border rounded-2xl p-5 shadow-sm flex items-center justify-center h-32">
       <Loader2 size={22} className="animate-spin text-muted-foreground" />
     </div>
@@ -223,10 +210,10 @@ const AnalyticsWidget = () => {
       {/* Métriques */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: "Visites totales",    value: stats.total,       sub: `+${stats.today} aujourd'hui`,              color: "hsl(var(--chess-blue))" },
-          { label: "Visiteurs uniques",  value: stats.unique,      sub: `+${stats.todayUnique} aujourd'hui`,        color: "hsl(var(--chess-gold-dark))" },
-          { label: "Aujourd'hui",        value: stats.today,       sub: `${stats.todayUnique} unique${stats.todayUnique > 1 ? 's' : ''}`, color: "hsl(var(--chess-blue))" },
-          { label: "Pays détectés",      value: stats.byCountry.length, sub: stats.byCountry[0]?.name || '—',       color: "#10b981" },
+          { label: "Visites totales",    value: stats.total,            sub: `+${stats.today} aujourd'hui`,                      color: "hsl(var(--chess-blue))" },
+          { label: "Visiteurs uniques",  value: stats.unique,           sub: `+${stats.todayUnique} aujourd'hui`,                color: "hsl(var(--chess-gold-dark))" },
+          { label: "Aujourd'hui",        value: stats.today,            sub: `${stats.todayUnique} unique${stats.todayUnique > 1 ? 's' : ''}`, color: "hsl(var(--chess-blue))" },
+          { label: "Pays détectés",      value: stats.byCountry.length, sub: stats.byCountry[0]?.name || '—',                     color: "#10b981" },
         ].map(s => (
           <div key={s.label} className="bg-muted/30 rounded-xl p-3 space-y-1">
             <p className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
@@ -280,12 +267,12 @@ const AnalyticsWidget = () => {
 
       {stats.total === 0 && (
         <p className="text-xs text-muted-foreground text-center py-2">
-          Aucune visite enregistrée dans ce navigateur pour les 30 derniers jours.
+          Aucune visite enregistrée pour les 30 derniers jours.
         </p>
       )}
 
       <p className="text-[10px] text-muted-foreground border-t pt-2">
-        ⓘ Basé sur les visites enregistrées dans le localStorage de ce navigateur.
+        ⓘ Données en temps réel depuis Supabase — toutes les visites, tous les navigateurs.
       </p>
     </div>
   )
