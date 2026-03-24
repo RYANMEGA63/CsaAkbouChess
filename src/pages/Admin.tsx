@@ -312,11 +312,9 @@ const STATUS_LABELS = {
 // ── TOURNAMENT FORM ───────────────────────────────────────────────
 const emptyT = (): Omit<Tournament, 'id' | 'created_at' | 'updated_at'> => ({
   title: "", date: "", date_iso: "", cadence: "", type: "Blitz", rounds: 7,
-  location: "", spots: 0, total: 0, description: "", price: "",
-  arbitre: "", homologue: false, niveaux: "", contact: "",
-  fiches_techniques_urls: [], photos_urls: [],
+  location: "", description: "",
+  fiches_techniques_urls: [],
   is_past: false, display_order: 0,
-  podium_1: "", podium_2: "", podium_3: "",
   registrations_closed: false,
 })
 
@@ -329,17 +327,23 @@ const TournamentForm = ({ initial, onSave, onClose }: {
     title: initial.title, date: initial.date, date_iso: initial.date_iso || "",
     cadence: initial.cadence, type: initial.type,
     rounds: initial.rounds, location: initial.location,
-    spots: 0, total: 0, price: "", arbitre: "", contact: "",
     description: initial.description,
     homologue: initial.homologue, niveaux: initial.niveaux,
     fiches_techniques_urls: initial.fiches_techniques_urls || [],
-    photos_urls: [],
     is_past: initial.is_past, display_order: initial.display_order || 0,
-    winner: initial.winner || "", participants: initial.participants || 0,
-    winner_medal: initial.winner_medal || "", winner_note: initial.winner_note || "",
-    podium_1: initial.podium_1 || "", podium_2: initial.podium_2 || "", podium_3: initial.podium_3 || "",
     registrations_closed: initial.registrations_closed || false,
-  } : { ...emptyT(), winner: "", participants: 0, winner_medal: "", winner_note: "" })
+  } : { ...emptyT() })
+
+  // Places supplémentaires (4e, 5e, …) stockées comme tableau [{rank, name}]
+  const parseExtraPlaces = (t: Tournament | null): { rank: number; name: string; category: string }[] => {
+    try {
+      const raw = (t as unknown as Record<string, unknown>)?.['extra_places']
+      if (Array.isArray(raw)) return raw as { rank: number; name: string; category: string }[]
+    } catch {}
+    return []
+  }
+  const [extraPlaces, setExtraPlaces] = useState<{ rank: number; name: string; category: string }[]>(parseExtraPlaces(initial))
+
   const [saving, setSaving] = useState(false)
   const fichesRef = useRef<HTMLInputElement>(null)
   const [fichePreviews, setFichePreviews] = useState<string[]>(form.fiches_techniques_urls)
@@ -376,7 +380,7 @@ const TournamentForm = ({ initial, onSave, onClose }: {
     try {
       const newFicheUrls = ficheFiles.length ? await uploadMultiple('tournament-fiches', ficheFiles) : []
       const finalFiches = [...form.fiches_techniques_urls, ...newFicheUrls]
-      await onSave({ ...form, fiches_techniques_urls: finalFiches })
+      await onSave({ ...form, fiches_techniques_urls: finalFiches, extra_places: extraPlaces } as never)
       toast.success(initial ? "Tournoi mis à jour !" : "Tournoi créé !")
       onClose()
     } catch (e: unknown) {
@@ -435,7 +439,7 @@ const TournamentForm = ({ initial, onSave, onClose }: {
             </div>
           </div>
 
-          <div><label className={labelCls}>Description</label><textarea className={`${inputCls} min-h-[80px] resize-y`} value={form.description} onChange={e => set('description', e.target.value)} /></div>
+<div><label className={labelCls}>Description</label><textarea className={`${inputCls} min-h-[80px] resize-y`} value={form.description} onChange={e => set('description', e.target.value)} /></div>
 
           {/* Clôture des inscriptions */}
           <div className={`rounded-xl border-2 p-4 transition-all ${form.registrations_closed ? 'border-red-300 bg-red-50/50' : 'border-border'}`}>
@@ -461,30 +465,89 @@ const TournamentForm = ({ initial, onSave, onClose }: {
             </div>
             <p className="text-xs text-muted-foreground ml-7">Le tournoi passera dans la section "Derniers résultats"</p>
 
-            {form.is_past && (
-              <div className="space-y-3 mt-4 pt-4 border-t">
-                {/* Podium */}
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Podium</p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className={labelCls}>🥇 1ère place</label>
-                    <input className={inputCls} placeholder="Nom du joueur" value={form.podium_1} onChange={e => set('podium_1', e.target.value)} />
+            {form.is_past && (() => {
+              const CATEGORIES = [
+                { id: '1er',      label: '1ère place',   icon: '🥇' },
+                { id: '2eme',     label: '2ème place',   icon: '🥈' },
+                { id: '3eme',     label: '3ème place',   icon: '🥉' },
+                { id: '4eme',     label: '4ème place',   icon: '4️⃣' },
+                { id: '5eme',     label: '5ème place',   icon: '5️⃣' },
+                { id: 'feminin',  label: 'Féminin',      icon: '♀️' },
+                { id: 'u8',       label: 'U8',           icon: 'U8' },
+                { id: 'u10',      label: 'U10',          icon: 'U10' },
+                { id: 'u12',      label: 'U12',          icon: 'U12' },
+                { id: 'u14',      label: 'U14',          icon: 'U14' },
+                { id: 'u16',      label: 'U16',          icon: 'U16' },
+                { id: 'u18',      label: 'U18',          icon: 'U18' },
+                { id: 'u20',      label: 'U20',          icon: 'U20' },
+                { id: 'veterans', label: 'Vétérans',     icon: '🏛️' },
+              ]
+              return (
+                <div className="space-y-4 mt-4 pt-4 border-t">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Classement & palmarès</p>
+                    <span className="text-[10px] text-muted-foreground">{extraPlaces.length} entrée{extraPlaces.length > 1 ? 's' : ''}</span>
                   </div>
+
+                  {/* Entrées existantes */}
+                  {extraPlaces.length > 0 && (
+                    <div className="space-y-2">
+                      {extraPlaces.map((p, i) => {
+                        const cat = CATEGORIES.find(c => c.id === p.category) || CATEGORIES[0]
+                        return (
+                          <div key={i} className="flex items-center gap-2 bg-muted/30 rounded-xl px-3 py-2">
+                            <span className="text-lg w-7 text-center shrink-0">{cat.icon}</span>
+                            <select
+                              className="text-xs border rounded-lg px-2 py-1.5 bg-background shrink-0 font-medium"
+                              value={p.category || '1er'}
+                              onChange={e => setExtraPlaces(prev => prev.map((x, j) => j === i ? { ...x, category: e.target.value } : x))}>
+                              {CATEGORIES.map(c => (
+                                <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
+                              ))}
+                            </select>
+                            <input
+                              className={`${inputCls} flex-1`}
+                              placeholder="Nom du joueur / équipe"
+                              value={p.name}
+                              onChange={e => setExtraPlaces(prev => prev.map((x, j) => j === i ? { ...x, name: e.target.value } : x))}
+                            />
+                            <button
+                              onClick={() => setExtraPlaces(prev => prev.filter((_, j) => j !== i))}
+                              className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
+                              <X size={13} />
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {extraPlaces.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-3 border border-dashed rounded-xl">
+                      Aucune entrée — cliquez sur une catégorie pour ajouter
+                    </p>
+                  )}
+
+                  {/* Grille de catégories cliquables */}
                   <div>
-                    <label className={labelCls}>🥈 2ème place</label>
-                    <input className={inputCls} placeholder="Nom du joueur" value={form.podium_2} onChange={e => set('podium_2', e.target.value)} />
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Ajouter une entrée</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {CATEGORIES.map(c => (
+                        <button
+                          key={c.id}
+                          onClick={() => setExtraPlaces(prev => [...prev, { rank: prev.length + 1, name: '', category: c.id }])}
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium hover:bg-primary/10 hover:border-primary/40 hover:text-primary transition-all bg-card">
+                          <span>{c.icon}</span>
+                          <span>{c.label}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div>
-                    <label className={labelCls}>🥉 3ème place</label>
-                    <input className={inputCls} placeholder="Nom du joueur" value={form.podium_3} onChange={e => set('podium_3', e.target.value)} />
-                  </div>
+
+
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><label className={labelCls}>Participants</label><input type="number" className={inputCls} value={form.participants} onChange={e => set('participants', +e.target.value)} /></div>
-                  <div><label className={labelCls}>Note / commentaire</label><input className={inputCls} value={form.winner_note} onChange={e => set('winner_note', e.target.value)} /></div>
-                </div>
-              </div>
-            )}
+              )
+            })()}
           </div>
 
           {/* Fiches techniques */}
@@ -591,7 +654,6 @@ const PostForm = ({ initial, onSave, onClose }: {
     title:         initial?.title        || '',
     content:       initial?.content      || '',
     images_urls:   initial?.images_urls  || [],
-    likes:         initial?.likes        || 0,
     published:     initial?.published    ?? true,
     display_order: initial?.display_order || 0,
     custom_date:   initial?.custom_date  || '',
@@ -1703,13 +1765,29 @@ const TournamentsPanel = ({ allTournaments, loading, expandedId, setExpandedId, 
                       <div key={l as string}><span className="text-muted-foreground">{l} : </span><span className="font-medium">{v || "—"}</span></div>
                     ))}
                   </div>
-                  {subTab === 'past' && (t.podium_1 || t.podium_2 || t.podium_3) && (
-                    <div className="flex gap-2 flex-wrap pt-1">
-                      {t.podium_1 && <span className="bg-card border px-2 py-1 rounded-lg">🥇 {t.podium_1}</span>}
-                      {t.podium_2 && <span className="bg-card border px-2 py-1 rounded-lg">🥈 {t.podium_2}</span>}
-                      {t.podium_3 && <span className="bg-card border px-2 py-1 rounded-lg">🥉 {t.podium_3}</span>}
-                    </div>
-                  )}
+                  {subTab === 'past' && (() => {
+                    const extras = (t as unknown as Record<string,unknown>).extra_places as {rank:number;name:string;category:string}[] | undefined
+                    if (!extras || extras.length === 0) return null
+                    const CAT_ICONS: Record<string,string> = {
+                      '1er':'🥇','2eme':'🥈','3eme':'🥉','4eme':'4️⃣','5eme':'5️⃣',
+                      'feminin':'♀️','u8':'U8','u10':'U10','u12':'U12','u14':'U14',
+                      'u16':'U16','u18':'U18','u20':'U20','veterans':'🏛️'
+                    }
+                    const CAT_LABELS: Record<string,string> = {
+                      '1er':'1er','2eme':'2ème','3eme':'3ème','4eme':'4ème','5eme':'5ème',
+                      'feminin':'Féminin','u8':'U8','u10':'U10','u12':'U12','u14':'U14',
+                      'u16':'U16','u18':'U18','u20':'U20','veterans':'Vétérans'
+                    }
+                    return (
+                      <div className="flex gap-2 flex-wrap pt-1">
+                        {extras.filter(p => p.name).sort((a, b) => a.rank - b.rank).map((p, i) => (
+                          <span key={i} className="bg-card border px-2 py-1 rounded-lg text-xs">
+                            {CAT_ICONS[p.category] || '🏅'} {CAT_LABELS[p.category] || p.category} — {p.name}
+                          </span>
+                        ))}
+                      </div>
+                    )
+                  })()}
                   {t.fiches_techniques_urls?.length > 0 && (
                     <div className="flex gap-2 pt-2 overflow-x-auto">
                       {t.fiches_techniques_urls.map((url, i) => (
@@ -1890,7 +1968,8 @@ const RegistrationsPanel = ({ allTournaments, allRegistrations, loading, deleteC
                                 <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">Joueur</th>
                                 <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground hidden sm:table-cell">FIDE ID</th>
                                 <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground hidden md:table-cell">Club</th>
-                                <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">Date</th>
+                                <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground hidden lg:table-cell">Naissance</th>
+                                <th className="text-left px-4 py-2.5 text-xs font-semibold text-muted-foreground">Inscrit le</th>
                                 <th className="px-4 py-2.5 w-10"></th>
                               </tr>
                             </thead>
@@ -1909,6 +1988,9 @@ const RegistrationsPanel = ({ allTournaments, allRegistrations, loading, deleteC
                                     <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell text-xs">{r.fide_id || '—'}</td>
                                     <td className="px-4 py-3 text-muted-foreground hidden md:table-cell text-xs">
                                       <Highlight text={r.club || '—'} query={regSearch} />
+                                    </td>
+                                    <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell text-xs">
+                                      {(r as any).date_naissance ? new Date((r as any).date_naissance).toLocaleDateString('fr-FR') : '—'}
                                     </td>
                                     <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
                                       {new Date(r.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
@@ -1990,6 +2072,7 @@ const RegistrationsPanel = ({ allTournaments, allRegistrations, loading, deleteC
                                         <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground w-8">#</th>
                                         <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">Joueur</th>
                                         <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground hidden sm:table-cell">FIDE ID</th>
+                                        <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground hidden md:table-cell">Naissance</th>
                                       </tr>
                                     </thead>
                                     <tbody>
@@ -2005,6 +2088,7 @@ const RegistrationsPanel = ({ allTournaments, allRegistrations, loading, deleteC
                                               <Highlight text={`${j.prenom || ''} ${j.nom || ''}`.trim()} query={regSearch} />
                                             </td>
                                             <td className="px-4 py-2.5 text-xs text-muted-foreground hidden sm:table-cell">{j.fideId || '—'}</td>
+                                            <td className="px-4 py-2.5 text-xs text-muted-foreground hidden md:table-cell">{j.dateNaissance ? new Date(j.dateNaissance).toLocaleDateString('fr-FR') : '—'}</td>
                                           </tr>
                                         )
                                       })}

@@ -46,9 +46,8 @@ export function useTournaments() {
   const safeTournamentPayload = (t: Partial<Tournament>) => {
     const KNOWN_COLS = [
       'title','date','date_iso','cadence','type','rounds','location',
-      'spots','total','description','price','arbitre','homologue','niveaux','contact',
-      'fiches_techniques_urls','photos_urls','is_past','winner','participants',
-      'winner_medal','winner_note','podium_1','podium_2','podium_3',
+      'description','homologue','niveaux',
+      'fiches_techniques_urls','is_past','extra_places',
       'display_order','registrations_closed',
     ]
     return Object.fromEntries(
@@ -66,8 +65,9 @@ export function useTournaments() {
 
   const update = async (id: string, t: Partial<Tournament>) => {
     const payload = safeTournamentPayload(t)
+    console.log('[DEBUG] update tournament payload:', payload)
     const { data: row, error: err } = await supabase.from('tournaments').update(payload).eq('id', id).select().single()
-    if (err) throw err
+    if (err) { console.error('[DEBUG] supabase update error:', err); throw new Error(err.message) }
     setData(prev => prev.map(x => x.id === id ? row : x))
     return row
   }
@@ -136,13 +136,7 @@ export function usePosts() {
     setData(prev => prev.filter(x => x.id !== id))
   }
 
-  const incrementLike = async (id: string, current: number) => {
-    const newLikes = current + 1
-    await supabase.from('posts').update({ likes: newLikes }).eq('id', id)
-    setData(prev => prev.map(x => x.id === id ? { ...x, likes: newLikes } : x))
-  }
-
-  return { data, loading, error, create, update, remove, incrementLike, refetch: fetch }
+  return { data, loading, error, create, update, remove, refetch: fetch }
 }
 
 // ── Gallery ──────────────────────────────────────────────────────
@@ -192,8 +186,9 @@ const SESSION_TIMEOUT_MS  = 2 * 60 * 60 * 1000 // 2h inactivité
 // Génère une empreinte légère de la session (user-agent + heure de connexion)
 function generateSessionFingerprint(): string {
   const ua  = navigator.userAgent.slice(0, 50)
-  const ts  = String(Math.floor(Date.now() / (1000 * 60 * 60))) // granularité heure
-  return btoa(`${ua}::${ts}`).slice(0, 32)
+  // Pas de timestamp : l'empreinte est stable pour toute la durée de la session
+  // (le timestamp horaire causait des déconnexions automatiques à chaque changement d'heure)
+  return btoa(`${ua}`).slice(0, 32)
 }
 
 function validateSessionFingerprint(): boolean {
@@ -349,7 +344,8 @@ export interface Registration {
   nom_club?: string
   responsable?: string
   telephone?: string
-  joueurs?: { nom: string; prenom: string; fideId: string }[]
+  date_naissance?: string
+  joueurs?: { nom: string; prenom: string; fideId: string; dateNaissance: string }[]
   created_at: string
 }
 

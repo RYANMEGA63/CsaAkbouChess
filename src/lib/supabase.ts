@@ -16,31 +16,19 @@ export const supabase = createClient(
 export interface Tournament {
   id: string
   title: string
-  date: string         // label affiché ex: "5 Avril 2026"
-  date_iso?: string    // date ISO pour calcul automatique du statut ex: "2026-04-05"
+  date: string
+  date_iso?: string
   cadence: string
   type: string
   rounds: number
   location: string
-  spots: number
-  total: number
   description: string
-  price: string
-  arbitre: string
   homologue: boolean
   niveaux: string
-  contact: string
   fiches_techniques_urls: string[]
-  photos_urls: string[]
   is_past: boolean
-  winner?: string
-  participants?: number
-  winner_medal?: string
-  winner_note?: string
-  podium_1?: string    // 1ère place
-  podium_2?: string    // 2ème place
-  podium_3?: string    // 3ème place
-  registrations_closed?: boolean  // inscriptions clôturées manuellement
+  extra_places?: { rank: number; name: string; category: string }[]
+  registrations_closed?: boolean
   display_order: number
   created_at: string
   updated_at: string
@@ -56,7 +44,6 @@ export interface Post {
   images_urls: string[]
   tag?: string
   tag_color?: string
-  likes: number
   published: boolean
   display_order: number
   custom_date?: string

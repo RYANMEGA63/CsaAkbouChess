@@ -57,11 +57,11 @@ const TournamentModal = ({ tournament, onClose, onOpenLightbox }: {
   const [step, setStep] = useState<"detail" | "form" | "success">("detail");
   const [inscriptionType, setInscriptionType] = useState<"solo" | "club" | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [soloForm, setSoloForm] = useState({ nom: "", prenom: "", fideId: "", club: "" });
+  const [soloForm, setSoloForm] = useState({ nom: "", prenom: "", fideId: "", club: "", dateNaissance: "" });
   const [clubForm, setClubForm] = useState({ nomClub: "", responsable: "", telephone: "" });
-  const [joueurs, setJoueurs] = useState([{ nom: "", prenom: "", fideId: "" }]);
+  const [joueurs, setJoueurs] = useState([{ nom: "", prenom: "", fideId: "", dateNaissance: "" }]);
 
-  const addJoueur = () => setJoueurs([...joueurs, { nom: "", prenom: "", fideId: "" }]);
+  const addJoueur = () => setJoueurs([...joueurs, { nom: "", prenom: "", fideId: "", dateNaissance: "" }]);
   const removeJoueur = (i: number) => setJoueurs(joueurs.filter((_, idx) => idx !== i));
   const updateJoueur = (i: number, field: string, value: string) =>
     setJoueurs(joueurs.map((j, idx) => idx === i ? { ...j, [field]: value } : j));
@@ -73,7 +73,7 @@ const TournamentModal = ({ tournament, onClose, onOpenLightbox }: {
     setSubmitting(true);
     try {
       if (inscriptionType === 'solo') {
-        await submitRegistration({ tournament_id: tournament.id, type: 'solo', nom: soloForm.nom, prenom: soloForm.prenom, fide_id: soloForm.fideId, club: soloForm.club });
+        await submitRegistration({ tournament_id: tournament.id, type: 'solo', nom: soloForm.nom, prenom: soloForm.prenom, fide_id: soloForm.fideId, club: soloForm.club, date_naissance: soloForm.dateNaissance });
       } else {
         await submitRegistration({ tournament_id: tournament.id, type: 'club', nom_club: clubForm.nomClub, responsable: clubForm.responsable, telephone: clubForm.telephone, joueurs });
       }
@@ -157,13 +157,30 @@ const TournamentModal = ({ tournament, onClose, onOpenLightbox }: {
                 <div className="rounded-xl border p-4 space-y-3" style={{ background: "hsl(var(--chess-blue)/0.04)", borderColor: "hsl(var(--chess-blue)/0.12)" }}>
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Résultats</p>
                   <div className="flex flex-col gap-2">
-                    {tournament.podium_1 && <div className="flex items-center gap-3 bg-card rounded-xl px-4 py-2.5 shadow-sm"><span className="text-xl">🥇</span><div><p className="text-[10px] text-muted-foreground">1ère place</p><p className="font-semibold text-sm">{tournament.podium_1}</p></div></div>}
-                    {tournament.podium_2 && <div className="flex items-center gap-3 bg-card rounded-xl px-4 py-2.5 shadow-sm"><span className="text-xl">🥈</span><div><p className="text-[10px] text-muted-foreground">2ème place</p><p className="font-semibold text-sm">{tournament.podium_2}</p></div></div>}
-                    {tournament.podium_3 && <div className="flex items-center gap-3 bg-card rounded-xl px-4 py-2.5 shadow-sm"><span className="text-xl">🥉</span><div><p className="text-[10px] text-muted-foreground">3ème place</p><p className="font-semibold text-sm">{tournament.podium_3}</p></div></div>}
-                    {!tournament.podium_1 && tournament.winner && <div className="flex items-center gap-3 bg-card rounded-xl px-4 py-2.5 shadow-sm"><span className="text-xl">{tournament.winner_medal || "🏆"}</span><div><p className="text-[10px] text-muted-foreground">Vainqueur</p><p className="font-semibold text-sm">{tournament.winner}</p></div></div>}
+                    {(() => {
+                      const ICONS: Record<string, string> = {
+                        '1er':'🥇','2eme':'🥈','3eme':'🥉','4eme':'4️⃣','5eme':'5️⃣',
+                        'feminin':'♀️','u8':'U8','u10':'U10','u12':'U12','u14':'U14',
+                        'u16':'U16','u18':'U18','u20':'U20','veterans':'🏛️'
+                      }
+                      const LABELS: Record<string, string> = {
+                        '1er':'1ère place','2eme':'2ème place','3eme':'3ème place','4eme':'4ème place','5eme':'5ème place',
+                        'feminin':'Féminin','u8':'U8','u10':'U10','u12':'U12','u14':'U14',
+                        'u16':'U16','u18':'U18','u20':'U20','veterans':'Vétérans'
+                      }
+                      const places = (tournament as any).extra_places as {rank:number;name:string;category:string}[] | undefined
+                      if (!places || places.length === 0) return <p className="text-xs text-muted-foreground italic">Résultats à venir</p>
+                      return places.map((p, i) => (
+                        <div key={i} className="flex items-center gap-3 bg-card rounded-xl px-4 py-2.5 shadow-sm">
+                          <span className="text-xl w-7 text-center">{ICONS[p.category] || '🏆'}</span>
+                          <div>
+                            <p className="text-[10px] text-muted-foreground">{LABELS[p.category] || p.category}</p>
+                            <p className="font-semibold text-sm">{p.name || '—'}</p>
+                          </div>
+                        </div>
+                      ))
+                    })()}
                   </div>
-                  {tournament.participants && <p className="text-xs text-muted-foreground">{tournament.participants} participants</p>}
-                  {tournament.winner_note && <p className="text-xs text-muted-foreground italic">"{tournament.winner_note}"</p>}
                 </div>
               ) : tournament.registrations_closed ? (
                 <div className="w-full rounded-xl py-3.5 font-bold text-sm flex items-center justify-center gap-2 border-2 border-red-200 bg-red-50 text-red-600">
@@ -207,7 +224,8 @@ const TournamentModal = ({ tournament, onClose, onOpenLightbox }: {
                   </div>
                   <div><label className="text-xs font-medium mb-1 block">FIDE ID <span className="text-muted-foreground">(optionnel)</span></label><input className={inputCls} placeholder="Ex : 12345678" value={soloForm.fideId} onChange={e => setSoloForm({ ...soloForm, fideId: e.target.value })} /></div>
                   <div><label className="text-xs font-medium mb-1 block">Club</label><input className={inputCls} value={soloForm.club} onChange={e => setSoloForm({ ...soloForm, club: e.target.value })} /></div>
-                  <button onClick={handleSubmit} disabled={submitting || !soloForm.nom || !soloForm.prenom}
+                  <div><label className="text-xs font-medium mb-1 block">Date de naissance *</label><input type="date" className={inputCls} value={soloForm.dateNaissance} onChange={e => setSoloForm({ ...soloForm, dateNaissance: e.target.value })} /></div>
+                  <button onClick={handleSubmit} disabled={submitting || !soloForm.nom || !soloForm.prenom || !soloForm.dateNaissance}
                     className="w-full rounded-xl py-3.5 font-bold text-sm text-white flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.99]"
                     style={{ background: "linear-gradient(135deg, hsl(var(--chess-blue-dark)), hsl(var(--chess-blue)))" }}>
                     {submitting && <Loader2 size={14} className="animate-spin" />} Valider mon inscription
@@ -229,12 +247,22 @@ const TournamentModal = ({ tournament, onClose, onOpenLightbox }: {
                     </div>
                     <div className="space-y-2">
                       {joueurs.map((j, i) => (
-                        <div key={i} className="flex gap-1.5 items-center bg-muted/30 rounded-xl p-2">
-                          <span className="text-xs font-bold text-muted-foreground w-5 text-center shrink-0">{i + 1}</span>
-                          <input placeholder="Nom" value={j.nom} onChange={e => updateJoueur(i, "nom", e.target.value)} className="flex-1 border rounded-lg px-2 py-1.5 text-xs bg-background focus:outline-none min-w-0" />
-                          <input placeholder="Prénom" value={j.prenom} onChange={e => updateJoueur(i, "prenom", e.target.value)} className="flex-1 border rounded-lg px-2 py-1.5 text-xs bg-background focus:outline-none min-w-0" />
-                          <input placeholder="FIDE" value={j.fideId} onChange={e => updateJoueur(i, "fideId", e.target.value)} className="w-16 border rounded-lg px-2 py-1.5 text-xs bg-background focus:outline-none" />
-                          {joueurs.length > 1 && <button onClick={() => removeJoueur(i)} className="text-muted-foreground hover:text-red-500 p-1 shrink-0"><Trash2 size={12} /></button>}
+                        <div key={i} className="bg-muted/30 rounded-xl p-2 space-y-1.5">
+                          {/* Ligne 1 : numéro + Nom + Prénom + poubelle */}
+                          <div className="flex gap-1.5 items-center">
+                            <span className="text-xs font-bold text-muted-foreground w-5 text-center shrink-0">{i + 1}</span>
+                            <input placeholder="Nom *" value={j.nom} onChange={e => updateJoueur(i, "nom", e.target.value)} className="flex-1 border rounded-lg px-2 py-1.5 text-xs bg-background focus:outline-none min-w-0" />
+                            <input placeholder="Prénom *" value={j.prenom} onChange={e => updateJoueur(i, "prenom", e.target.value)} className="flex-1 border rounded-lg px-2 py-1.5 text-xs bg-background focus:outline-none min-w-0" />
+                            {joueurs.length > 1 && <button onClick={() => removeJoueur(i)} className="text-muted-foreground hover:text-red-500 p-1 shrink-0"><Trash2 size={12} /></button>}
+                          </div>
+                          {/* Ligne 2 : FIDE + Date naissance */}
+                          <div className="flex gap-1.5 items-center pl-[26px]">
+                            <input placeholder="FIDE ID" value={j.fideId} onChange={e => updateJoueur(i, "fideId", e.target.value)} className="w-24 border rounded-lg px-2 py-1.5 text-xs bg-background focus:outline-none" />
+                            <div className="flex-1 relative">
+                              <input type="date" value={j.dateNaissance} onChange={e => updateJoueur(i, "dateNaissance", e.target.value)} className={`w-full border rounded-lg px-2 py-1.5 text-xs bg-background focus:outline-none ${!j.dateNaissance ? "border-orange-300" : "border-border"}`} />
+                              {!j.dateNaissance && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-orange-400 font-semibold pointer-events-none">requis</span>}
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -242,7 +270,7 @@ const TournamentModal = ({ tournament, onClose, onOpenLightbox }: {
                       <Plus size={14} /> Ajouter un joueur
                     </button>
                   </div>
-                  <button onClick={handleSubmit} disabled={submitting || !clubForm.nomClub || !clubForm.responsable}
+                  <button onClick={handleSubmit} disabled={submitting || !clubForm.nomClub || !clubForm.responsable || joueurs.some(j => !j.nom || !j.prenom || !j.dateNaissance)}
                     className="w-full rounded-xl py-3.5 font-bold text-sm text-white flex items-center justify-center gap-2 disabled:opacity-50"
                     style={{ background: "linear-gradient(135deg, hsl(var(--chess-blue-dark)), hsl(var(--chess-blue)))" }}>
                     {submitting && <Loader2 size={14} className="animate-spin" />} Valider l'inscription du club
@@ -465,9 +493,15 @@ const Tournaments = () => {
                           )}
                           <div className="absolute inset-0" style={{ background: "hsl(var(--chess-blue)/0.35)" }} />
                           <div className="absolute top-2 left-2 right-2 flex gap-1 flex-wrap">
-                            {t.podium_1 && <span className="bg-white/90 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow">🥇 {t.podium_1.split(" ")[0]}</span>}
-                            {t.podium_2 && <span className="bg-white/90 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow">🥈 {t.podium_2.split(" ")[0]}</span>}
-                            {!t.podium_1 && t.winner_medal && <span className="bg-white/90 text-xs font-bold px-2 py-0.5 rounded-full shadow">{t.winner_medal}</span>}
+                            {(() => {
+                              const ICONS: Record<string,string> = {'1er':'🥇','2eme':'🥈','3eme':'🥉','feminin':'♀️','veterans':'🏛️'}
+                              const places = (t as any).extra_places as {rank:number;name:string;category:string}[] | undefined
+                              return (places || []).slice(0, 3).map((p, i) => (
+                                <span key={i} className="bg-white/90 text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow">
+                                  {ICONS[p.category] || '🏆'} {p.name ? p.name.split(' ')[0] : ''}
+                                </span>
+                              ))
+                            })()}
                           </div>
                           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/50 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity">
                             <p className="text-white text-[10px] font-medium text-center">Voir les détails</p>
@@ -476,7 +510,6 @@ const Tournaments = () => {
                         <div className="p-3">
                           <p className="text-[10px] font-semibold mb-0.5" style={{ color: "hsl(var(--chess-gold-dark))" }}>{t.date}</p>
                           <h3 className="font-semibold text-xs md:text-sm leading-tight line-clamp-2">{t.title}</h3>
-                          {t.participants && <p className="text-[10px] text-muted-foreground mt-1">{t.participants} participants</p>}
                         </div>
                       </div>
                     </Reveal>

@@ -26,6 +26,9 @@ function PageTracker() {
   const location = useLocation()
 
   useEffect(() => {
+    // Scroll to top à chaque changement de page
+    window.scrollTo({ top: 0, behavior: 'instant' })
+
     // Ne pas tracker les pages admin
     if (ADMIN_PATHS.some(p => location.pathname.startsWith(p))) return
 
