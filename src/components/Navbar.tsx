@@ -44,9 +44,9 @@ const Navbar = () => {
           <div className="relative w-10 h-10 rounded-xl overflow-hidden shrink-0 shadow-md">
             <img src={logoClub} alt="Logo" className="w-full h-full object-cover" />
           </div>
-            <div className="hidden sm:block">
-              <div className="text-base font-display font-bold text-white leading-tight tracking-tight">{clubName}</div>
-              <div className="text-[9px] text-[hsl(var(--chess-gold-light))] uppercase tracking-[0.18em] font-medium">{clubSub}</div>
+            <div className="flex flex-col">
+              <div className="text-sm sm:text-base font-display font-bold text-white leading-tight tracking-tight">{clubName}</div>
+              <div className="text-[8px] sm:text-[9px] text-[hsl(var(--chess-gold-light))] uppercase tracking-[0.18em] font-medium">{clubSub}</div>
             </div>
         </Link>
 

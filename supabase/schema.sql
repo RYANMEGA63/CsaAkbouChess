@@ -129,6 +129,20 @@ create table gallery (
   created_at    timestamptz default now()
 );
 
+-- ── players ──────────────────────────────────────────────────────
+create table players (
+  id             uuid primary key default uuid_generate_v4(),
+  nom            text not null,
+  prenom         text not null,
+  date_naissance date,
+  categorie      text,
+  fide_id        text,
+  role           text,
+  display_order  int default 0,
+  created_at     timestamptz default now(),
+  updated_at     timestamptz default now()
+);
+
 -- ── Triggers ─────────────────────────────────────────────────────
 create or replace function set_updated_at()
 returns trigger as $$
@@ -139,6 +153,8 @@ create trigger tournaments_updated_at before update on tournaments
   for each row execute function set_updated_at();
 create trigger posts_updated_at before update on posts
   for each row execute function set_updated_at();
+create trigger players_updated_at before update on players
+  for each row execute function set_updated_at();
 
 -- ── RLS ──────────────────────────────────────────────────────────
 alter table site_config    enable row level security;
@@ -146,14 +162,17 @@ alter table tournaments    enable row level security;
 alter table posts          enable row level security;
 alter table registrations  enable row level security;
 alter table gallery        enable row level security;
+alter table players        enable row level security;
 
 create policy "public read site_config"       on site_config   for select using (true);
 create policy "public read tournaments"        on tournaments   for select using (true);
 create policy "public read posts"              on posts         for select using (published = true);
 create policy "public read gallery"            on gallery       for select using (true);
+create policy "public read players"            on players       for select using (true);
 create policy "public insert registrations"    on registrations for insert with check (true);
 create policy "auth write site_config"         on site_config   for all using (auth.role() = 'authenticated');
 create policy "auth write tournaments"         on tournaments   for all using (auth.role() = 'authenticated');
 create policy "auth write posts"               on posts         for all using (auth.role() = 'authenticated');
 create policy "auth write registrations"       on registrations for select using (auth.role() = 'authenticated');
 create policy "auth write gallery"             on gallery       for all using (auth.role() = 'authenticated');
+create policy "auth write players"             on players       for all using (auth.role() = 'authenticated');

@@ -7,9 +7,9 @@ import {
   LayoutDashboard, ClipboardList, UserCheck, Building2, Calendar, Search,
   BarChart2, Globe, TrendingUp, Lock, Unlock
 } from "lucide-react"
-import { useAuth, useTournaments, usePosts, useGallery, useRegistrations, Registration } from "@/hooks/useSupabase"
+import { useAuth, useTournaments, usePosts, useGallery, useRegistrations, usePlayers, Registration } from "@/hooks/useSupabase"
 import { useSiteConfig } from "@/lib/SiteConfigContext"
-import { supabase, uploadFile, uploadMultiple, Tournament, Post } from "@/lib/supabase"
+import { supabase, uploadFile, uploadMultiple, Tournament, Post, Player } from "@/lib/supabase"
 import { toast } from "sonner"
 import logoClub from "@/assets/logo-club.jpg"
 
@@ -663,12 +663,11 @@ const PostForm = ({ initial, onSave, onClose }: {
     if (!form.content.trim()) { toast.error("Le contenu est requis"); return }
     if (!selectedType)        { toast.error("Sélectionnez un type"); return }
 
-    const parsed  = parseTagColor(selectedType.color)
     const payload = {
       ...form,
-      type:      selectedType.label,   // type = label du type personnalisé
+      type:      selectedType.label,
       tag:       selectedType.label,
-      tag_color: selectedType.color,   // format "bg:#hex;text:#hex"
+      tag_color: selectedType.color,
     }
 
     setSaving(true)
@@ -784,11 +783,6 @@ const PostForm = ({ initial, onSave, onClose }: {
             <input type="date" className={inputCls}
               value={form.custom_date ? form.custom_date.slice(0, 10) : ''}
               onChange={e => set('custom_date', e.target.value ? `${e.target.value}T12:00:00.000Z` : '')} />
-            <p className="text-xs text-muted-foreground mt-1">
-              {form.custom_date
-                ? `→ Affiché le ${new Date(form.custom_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`
-                : 'Laissez vide pour la date de création'}
-            </p>
           </div>
 
           {/* Publié */}
@@ -812,6 +806,175 @@ const PostForm = ({ initial, onSave, onClose }: {
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ── PLAYER FORM ───────────────────────────────────────────────
+const PlayerForm = ({ initial, onSave, onClose }: {
+  initial: Player | null
+  onSave: (data: Omit<Player, 'id' | 'created_at' | 'updated_at'>) => Promise<void>
+  onClose: () => void
+}) => {
+  const [form, setForm] = useState({
+    nom:            initial?.nom            || '',
+    prenom:         initial?.prenom         || '',
+    date_naissance: initial?.date_naissance || '',
+    categorie:      initial?.categorie      || '',
+    fide_id:        initial?.fide_id        || '',
+    role:           initial?.role           || '',
+    display_order:  initial?.display_order  || 0,
+  })
+  const [saving, setSaving] = useState(false)
+  const set = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }))
+
+  const handleSave = async () => {
+    if (!form.nom.trim() || !form.prenom.trim()) { toast.error("Nom et prénom requis"); return }
+    setSaving(true)
+    try {
+      await onSave(form)
+      toast.success(initial ? "Membre mis à jour !" : "Membre ajouté !")
+      onClose()
+    } catch {
+      toast.error("Erreur lors de l'enregistrement")
+    }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-card w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b shrink-0 text-white"
+          style={{ background: "linear-gradient(135deg, hsl(var(--chess-blue-dark)), hsl(var(--chess-blue)))" }}>
+          <div>
+            <h2 className="font-bold text-base">{initial ? "Modifier le membre" : "Nouveau membre"}</h2>
+            <p className="text-white/50 text-xs mt-0.5">Renseignez les informations du membre</p>
+          </div>
+          <button onClick={onClose} className="text-white/50 hover:text-white p-1"><X size={20} /></button>
+        </div>
+
+        <div className="p-6 space-y-4 overflow-y-auto max-h-[70vh]">
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className={labelCls}>Nom *</label><input className={inputCls} value={form.nom} onChange={e => set('nom', e.target.value)} /></div>
+            <div><label className={labelCls}>Prénom *</label><input className={inputCls} value={form.prenom} onChange={e => set('prenom', e.target.value)} /></div>
+          </div>
+          <div>
+            <label className={labelCls}>Date de naissance</label>
+            <input type="date" className={inputCls} value={form.date_naissance || ''} onChange={e => set('date_naissance', e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>Catégorie</label>
+            <input className={inputCls} placeholder="Ex: Poussin, Senior, U14..." value={form.categorie || ''} onChange={e => set('categorie', e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>ID FIDE</label>
+            <input className={inputCls} placeholder="Numéro ID FIDE" value={form.fide_id || ''} onChange={e => set('fide_id', e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>Fonction / Rôle</label>
+            <input className={inputCls} placeholder="Ex: Président, Trésorier, Joueur..." value={form.role || ''} onChange={e => set('role', e.target.value)} />
+          </div>
+          <div>
+            <label className={labelCls}>Ordre d'affichage</label>
+            <input type="number" className={inputCls} value={form.display_order} onChange={e => set('display_order', +e.target.value)} />
+          </div>
+        </div>
+
+        <div className="flex gap-3 px-6 py-4 border-t bg-muted/10 shrink-0">
+          <button onClick={onClose} className="flex-1 border rounded-xl py-2.5 text-sm font-medium hover:bg-muted transition-colors">Annuler</button>
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white flex items-center justify-center gap-2 disabled:opacity-60 transition-all hover:brightness-110"
+            style={{ background: "linear-gradient(135deg, hsl(var(--chess-blue-dark)), hsl(var(--chess-blue)))" }}>
+            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+            Enregistrer
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── PLAYERS PANEL ─────────────────────────────────────────────
+const PlayersPanel = ({ players, loading, onEdit, onDelete, onNew }: {
+  players: Player[]
+  loading: boolean
+  onEdit: (p: Player) => void
+  onDelete: (id: string) => void
+  onNew: () => void
+}) => {
+  const [q, setQ] = useState('')
+  const [delConf, setDelConf] = useState<string | null>(null)
+
+  const filtered = players.filter(p => 
+    `${p.nom} ${p.prenom}`.toLowerCase().includes(q.toLowerCase()) || 
+    p.fide_id?.toLowerCase().includes(q.toLowerCase())
+  )
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <h2 className="text-xl font-bold">Gestion des membres</h2>
+        <button onClick={onNew} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-[1.02] active:scale-[0.98]"
+          style={{ background: "linear-gradient(135deg, hsl(var(--chess-blue-dark)), hsl(var(--chess-blue)))" }}>
+          <Plus size={16} /> Ajouter un membre
+        </button>
+      </div>
+
+      <div className="relative max-w-sm">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <input type="text" placeholder="Rechercher un membre..." value={q} onChange={e => setQ(e.target.value)}
+          className="w-full pl-8 pr-4 py-2 text-sm border rounded-xl bg-background outline-none focus:ring-2 focus:ring-primary/20" />
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-12"><Loader2 size={28} className="animate-spin text-primary" /></div>
+      ) : filtered.length === 0 ? (
+        <div className="bg-card border rounded-2xl p-12 text-center text-muted-foreground">
+          <UserCheck size={28} className="mx-auto mb-3 opacity-30" />
+          <p className="text-sm">{q ? "Aucun membre ne correspond à votre recherche" : "Aucun membre enregistré"}</p>
+        </div>
+      ) : (
+        <div className="bg-card border rounded-2xl overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead>
+                <tr className="bg-muted/50 border-b">
+                  <th className="px-4 py-3 font-semibold text-muted-foreground">Membre</th>
+                  <th className="px-4 py-3 font-semibold text-muted-foreground">Fonction</th>
+                  <th className="px-4 py-3 font-semibold text-muted-foreground">Catégorie</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {filtered.map(p => (
+                  <tr key={p.id} className="hover:bg-muted/30 transition-colors">
+                    <td className="px-4 py-3">
+                      <p className="font-bold">{p.nom} {p.prenom}</p>
+                      {p.fide_id && <span className="text-[10px] text-muted-foreground font-mono">FIDE: {p.fide_id}</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      {p.role ? <span className="text-xs font-semibold text-primary">{p.role}</span> : <span className="text-xs text-muted-foreground italic">Joueur</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => onEdit(p)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"><Pencil size={14} /></button>
+                        {delConf === p.id ? (
+                          <div className="flex gap-1 animate-in fade-in zoom-in duration-200">
+                            <button onClick={() => { onDelete(p.id); toast.success("Membre supprimé") }} className="px-2 py-1 bg-red-500 text-white rounded-lg text-[10px]">Oui</button>
+                            <button onClick={() => setDelConf(null)} className="px-2 py-1 border rounded-lg text-[10px]">Non</button>
+                          </div>
+                        ) : (
+                          <button onClick={() => setDelConf(p.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -2075,7 +2238,7 @@ const RegistrationsPanel = ({ allTournaments, allRegistrations, loading, deleteC
                                               <Highlight text={`${j.prenom || ''} ${j.nom || ''}`.trim()} query={regSearch} />
                                             </td>
                                             <td className="px-4 py-2.5 text-xs text-muted-foreground hidden sm:table-cell">{j.fideId || '—'}</td>
-                                            <td className="px-4 py-2.5 text-xs text-muted-foreground hidden md:table-cell">{j.dateNaissance ? new Date(j.dateNaissance).toLocaleDateString('fr-FR') : '—'}</td>
+                                            <td className="px-4 py-2.5 text-xs text-muted-foreground hidden md:table-cell">{(j as any).dateNaissance ? new Date((j as any).dateNaissance).toLocaleDateString('fr-FR') : '—'}</td>
                                           </tr>
                                         )
                                       })}
@@ -2105,7 +2268,7 @@ const RegistrationsPanel = ({ allTournaments, allRegistrations, loading, deleteC
 }
 
 // ── MAIN ADMIN ────────────────────────────────────────────────────
-type Tab = 'dashboard' | 'tournaments' | 'registrations' | 'posts' | 'gallery' | 'config'
+type Tab = 'dashboard' | 'tournaments' | 'registrations' | 'players' | 'posts' | 'gallery' | 'config'
 
 const Admin = () => {
   const { user, loading: authLoading, signIn, signOut, isLockedOut, lockoutMinutes } = useAuth()
@@ -2119,6 +2282,8 @@ const Admin = () => {
   const { data: allTournaments, loading: tLoading, create: createT, update: updateT, remove: removeT } = useTournaments()
   const { data: posts, loading: pLoading, create: createPost, update: updatePost, remove: removePost } = usePosts()
   const { data: allRegistrations, loading: rLoading, remove: removeReg } = useRegistrations()
+  const [editPlayer, setEditPlayer] = useState<Player | null | 'new'>(null)
+  const { data: allPlayers, loading: playersLoading, create: createPlayer, update: updatePlayer, remove: removePlayer } = usePlayers()
 
   const [tSearch, setTSearch] = useState('')
   const [pSearch, setPSearch] = useState('')
@@ -2171,6 +2336,7 @@ const Admin = () => {
     { id: 'dashboard',     label: 'Tableau de bord',  icon: LayoutDashboard },
     { id: 'tournaments',   label: 'Tournois',          icon: Trophy },
     { id: 'registrations', label: 'Inscriptions',      icon: ClipboardList },
+    { id: 'players',       label: 'Membres',           icon: UserCheck },
     { id: 'posts',         label: 'Publications',      icon: Megaphone },
     { id: 'gallery',       label: 'Galerie',           icon: Image },
     { id: 'config',        label: 'Contenu du site',   icon: Settings },
@@ -2255,11 +2421,12 @@ const Admin = () => {
           {tab === 'dashboard' && (
             <div className="space-y-6">
               <h2 className="text-xl font-bold">Tableau de bord</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                 {[
                   { label: "Tournois à venir", value: upcoming.length, color: "hsl(var(--chess-blue))" },
                   { label: "Tournois finis", value: past.length, color: "hsl(var(--chess-silver))" },
                   { label: "Inscriptions reçues", value: allRegistrations.length, color: "hsl(var(--chess-gold))" },
+                  { label: "Membres inscrits", value: allPlayers.length, color: "hsl(var(--chess-blue))" },
                 ].map(s => (
                   <div key={s.label} className="bg-card border rounded-2xl p-4 sm:p-5 shadow-sm">
                     <p className="text-2xl sm:text-3xl font-bold" style={{ color: s.color }}>{s.value}</p>
@@ -2362,8 +2529,30 @@ const Admin = () => {
           {/* ── CONFIG ── */}
           {tab === 'config' && <ConfigPanel />}
 
+          {/* ── PLAYERS ── */}
+          {tab === 'players' && (
+            <PlayersPanel
+              players={allPlayers}
+              loading={playersLoading}
+              onEdit={setEditPlayer}
+              onDelete={removePlayer}
+              onNew={() => setEditPlayer('new')}
+            />
+          )}
+
         </main>
       </div>
+
+      {editPlayer !== null && (
+        <PlayerForm
+          initial={editPlayer === 'new' ? null : editPlayer}
+          onSave={async (data) => {
+            if (editPlayer && editPlayer !== 'new') await updatePlayer(editPlayer.id, data)
+            else await createPlayer(data)
+          }}
+          onClose={() => setEditPlayer(null)}
+        />
+      )}
     </div>
   )
 }

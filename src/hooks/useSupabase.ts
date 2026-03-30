@@ -377,3 +377,50 @@ export function useRegistrations(tournamentId?: string) {
 
   return { data, loading, remove, refetch: fetch }
 }
+
+// ── Players ──────────────────────────────────────────────────────
+export function usePlayers() {
+  const [data, setData] = useState<import('@/lib/supabase').Player[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetch = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const { data: rows, error: err } = await withRetry(() =>
+        supabase.from('players').select('*')
+          .order('display_order', { ascending: true })
+          .order('nom', { ascending: true })
+      )
+      if (err) throw err
+      setData(rows || [])
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Erreur de chargement')
+    } finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => { fetch() }, [fetch])
+
+  const create = async (p: Omit<import('@/lib/supabase').Player, 'id' | 'created_at' | 'updated_at'>) => {
+    const { data: row, error: err } = await supabase.from('players').insert(p).select().single()
+    if (err) throw err
+    setData(prev => [...prev, row])
+    return row
+  }
+
+  const update = async (id: string, p: Partial<import('@/lib/supabase').Player>) => {
+    const { data: row, error: err } = await supabase.from('players').update(p).eq('id', id).select().single()
+    if (err) throw err
+    setData(prev => prev.map(x => x.id === id ? row : x))
+    return row
+  }
+
+  const remove = async (id: string) => {
+    const { error: err } = await supabase.from('players').delete().eq('id', id)
+    if (err) throw err
+    setData(prev => prev.filter(x => x.id !== id))
+  }
+
+  return { data, loading, error, create, update, remove, refetch: fetch }
+}

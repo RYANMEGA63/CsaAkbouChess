@@ -60,6 +60,19 @@ export interface GalleryPhoto {
   created_at: string
 }
 
+export interface Player {
+  id: string
+  nom: string
+  prenom: string
+  date_naissance: string | null
+  categorie: string | null
+  fide_id: string | null
+  role: string | null
+  display_order: number
+  created_at: string
+  updated_at: string
+}
+
 export type SiteConfig = Record<string, unknown>
 
 // ── Helpers upload — stockage base64 inline (pas de Storage Supabase) ──────
