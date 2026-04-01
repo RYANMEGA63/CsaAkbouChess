@@ -849,9 +849,14 @@ const PlayerForm = ({ initial, mode: providedMode, onSave, onClose }: {
   const handleSave = async () => {
     if (!form.nom.trim() || !form.prenom.trim()) { toast.error("Nom et prénom requis"); return }
     setSaving(true)
+    const finalForm = { ...form }
+    if (finalForm.role?.toLowerCase().includes('membre ag')) {
+      finalForm.role = 'Membre'
+    }
+
     try {
-      await onSave(form)
-      toast.success(initial ? "Membre mis à jour !" : "Membre ajouté !")
+      await onSave(finalForm)
+      toast.success(initial ? "Enregistré avec succès !" : "Ajouté avec succès !")
       onClose()
     } catch {
       toast.error("Erreur lors de l'enregistrement")
@@ -866,9 +871,9 @@ const PlayerForm = ({ initial, mode: providedMode, onSave, onClose }: {
           style={{ background: "linear-gradient(135deg, hsl(var(--chess-blue-dark)), hsl(var(--chess-blue)))" }}>
           <div>
             <h2 className="font-bold text-base">
-              {initial ? "Modifier" : "Ajouter"} {mode === 'athlete' ? "un athlète" : "un membre du bureau"}
+              {initial ? "Modifier" : "Ajouter"} {mode === 'athlete' ? "un athlète" : "un adhérent"}
             </h2>
-            <p className="text-white/50 text-xs mt-0.5">Renseignez les informations essentielles</p>
+            <p className="text-white/50 text-xs mt-0.5">Renseignez les informations de {mode === 'athlete' ? "l'athlète" : "l'adhérent"}</p>
           </div>
           <button onClick={onClose} className="text-white/50 hover:text-white p-1"><X size={20} /></button>
         </div>
@@ -943,20 +948,32 @@ const PlayersPanel = ({ players, loading, onEdit, onDelete, onNew }: {
 }) => {
   const [q, setQ] = useState('')
   const [delConf, setDelConf] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'bureau' | 'athletes'>('bureau')
+  const [activeTab, setActiveTab] = useState<'adherents' | 'athletes'>('adherents')
+  const [catFilter, setCatFilter] = useState('all')
+  const [levelFilter, setLevelFilter] = useState('all')
 
-  // Filtrage : Membres du bureau (rôle spécifique) vs Athlètes (sans rôle ou 'Athlète'/'Joueur')
-  const bureauMembers = players.filter(p => p.role && p.role.trim() !== '' && !['joueur', 'athlète'].includes(p.role.toLowerCase()))
+  // Filtrage : Adhérents (rôle spécifique) vs Athlètes (sans rôle ou 'Athlète'/'Joueur')
+  const adherentsList = players.filter(p => p.role && p.role.trim() !== '' && !['joueur', 'athlète'].includes(p.role.toLowerCase()))
   const clubAthletes   = players.filter(p => !p.role || p.role.trim() === '' || ['joueur', 'athlète'].includes(p.role.toLowerCase()))
 
-  const currentList = activeTab === 'bureau' ? bureauMembers : clubAthletes
+  const currentList = activeTab === 'adherents' ? adherentsList : clubAthletes
 
-  const filtered = currentList.filter(p => 
-    `${p.nom} ${p.prenom}`.toLowerCase().includes(q.toLowerCase()) || 
-    p.fide_id?.toLowerCase().includes(q.toLowerCase()) ||
-    p.telephone?.toLowerCase().includes(q.toLowerCase()) ||
-    p.niveaux?.toLowerCase().includes(q.toLowerCase())
-  )
+  const categories = Array.from(new Set(clubAthletes.map(p => p.categorie).filter(Boolean))).sort()
+  const levels     = Array.from(new Set(clubAthletes.map(p => p.niveaux).filter(Boolean))).sort()
+
+  const filtered = currentList.filter(p => {
+    const matchSearch = `${p.nom} ${p.prenom}`.toLowerCase().includes(q.toLowerCase()) || 
+                       p.fide_id?.toLowerCase().includes(q.toLowerCase()) ||
+                       p.telephone?.toLowerCase().includes(q.toLowerCase()) ||
+                       p.niveaux?.toLowerCase().includes(q.toLowerCase())
+
+    if (activeTab === 'athletes') {
+      const matchCat = catFilter === 'all' || p.categorie === catFilter
+      const matchLevel = levelFilter === 'all' || p.niveaux === levelFilter
+      return matchSearch && matchCat && matchLevel
+    }
+    return matchSearch
+  })
 
   return (
     <div className="space-y-6">
@@ -968,7 +985,7 @@ const PlayersPanel = ({ players, loading, onEdit, onDelete, onNew }: {
         <div className="flex gap-2">
           <button onClick={() => onNew('member')} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:scale-[1.02] active:scale-[0.98] shadow-sm hover:shadow-md"
             style={{ background: "linear-gradient(135deg, hsl(var(--chess-blue-dark)), hsl(var(--chess-blue)))" }}>
-            <Plus size={16} /> Membre Bureau
+            <Plus size={16} /> Adhérent
           </button>
           <button onClick={() => onNew('athlete')} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:scale-[1.02] active:scale-[0.98] shadow-sm hover:shadow-md"
             style={{ background: "linear-gradient(135deg, #f59e0b, #d97706)" }}>
@@ -978,9 +995,9 @@ const PlayersPanel = ({ players, loading, onEdit, onDelete, onNew }: {
       </div>
 
       <div className="flex p-1 bg-muted rounded-2xl w-fit">
-        <button onClick={() => { setActiveTab('bureau'); setQ('') }}
-          className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'bureau' ? 'bg-background shadow-sm text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
-          Bureau du Club
+        <button onClick={() => { setActiveTab('adherents'); setQ('') }}
+          className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'adherents' ? 'bg-background shadow-sm text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
+          Adhérents du Club
         </button>
         <button onClick={() => { setActiveTab('athletes'); setQ('') }}
           className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'athletes' ? 'bg-background shadow-sm text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
@@ -988,10 +1005,27 @@ const PlayersPanel = ({ players, loading, onEdit, onDelete, onNew }: {
         </button>
       </div>
 
-      <div className="relative max-w-sm">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <input type="text" placeholder={`Rechercher un ${activeTab === 'bureau' ? 'membre' : 'athlète'}...`} value={q} onChange={e => setQ(e.target.value)}
-          className="w-full pl-9 pr-4 py-2.5 text-sm border rounded-xl bg-background outline-none transition-shadow focus:ring-2 focus:ring-primary/20" />
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+        <div className="relative flex-1 w-full max-w-sm">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input type="text" placeholder={`Rechercher un ${activeTab === 'adherents' ? 'membre' : 'athlète'}...`} value={q} onChange={e => setQ(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 text-sm border rounded-xl bg-background outline-none transition-shadow focus:ring-2 focus:ring-primary/20" />
+        </div>
+
+        {activeTab === 'athletes' && (
+          <div className="flex gap-2 w-full sm:w-auto">
+            <select value={catFilter} onChange={e => setCatFilter(e.target.value)}
+              className="flex-1 sm:flex-none h-10 px-3 py-1.5 text-xs border rounded-xl bg-background outline-none focus:ring-2 focus:ring-primary/20">
+              <option value="all">Toutes catégories</option>
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select value={levelFilter} onChange={e => setLevelFilter(e.target.value)}
+              className="flex-1 sm:flex-none h-10 px-3 py-1.5 text-xs border rounded-xl bg-background outline-none focus:ring-2 focus:ring-primary/20">
+              <option value="all">Tous niveaux</option>
+              {levels.map(l => <option key={l} value={l}>{l}</option>)}
+            </select>
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -1029,7 +1063,7 @@ const PlayersPanel = ({ players, loading, onEdit, onDelete, onNew }: {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[10px] text-muted-foreground">
-                  {activeTab === 'bureau' && p.telephone && (
+                  {activeTab === 'adherents' && p.telephone && (
                     <div className="flex items-center gap-1.5 bg-muted/40 px-2 py-1 rounded-md">
                       <Phone size={10} className="text-green-600" /> {p.telephone}
                     </div>
@@ -1056,7 +1090,7 @@ const PlayersPanel = ({ players, loading, onEdit, onDelete, onNew }: {
                 <thead>
                   <tr className="bg-muted/50 border-b border-border">
                     <th className="px-5 py-4 font-bold text-xs uppercase tracking-wider text-muted-foreground">Nom / FIDE</th>
-                    {activeTab === 'bureau' ? (
+                    {activeTab === 'adherents' ? (
                       <>
                         <th className="px-5 py-4 font-bold text-xs uppercase tracking-wider text-muted-foreground">Fonction</th>
                         <th className="px-5 py-4 font-bold text-xs uppercase tracking-wider text-muted-foreground">Téléphone</th>
@@ -1079,7 +1113,7 @@ const PlayersPanel = ({ players, loading, onEdit, onDelete, onNew }: {
                         <p className="font-bold text-sm group-hover:text-primary transition-colors">{p.nom} {p.prenom}</p>
                         {p.fide_id && <span className="text-[10px] text-muted-foreground font-mono flex items-center gap-1 mt-0.5"><Trophy size={9} className="text-amber-500" /> ID: {p.fide_id}</span>}
                       </td>
-                      {activeTab === 'bureau' ? (
+                      {activeTab === 'adherents' ? (
                         <>
                           <td className="px-5 py-3.5">
                             <span className="text-xs font-semibold px-2 py-1 rounded-md bg-primary/5 text-primary border border-primary/10 whitespace-nowrap">{p.role}</span>
@@ -2487,7 +2521,7 @@ const Admin = () => {
     { id: 'dashboard',     label: 'Tableau de bord',  icon: LayoutDashboard },
     { id: 'tournaments',   label: 'Tournois',          icon: Trophy },
     { id: 'registrations', label: 'Inscriptions',      icon: ClipboardList },
-    { id: 'players',       label: 'Membres',           icon: UserCheck },
+    { id: 'players',       label: 'Adhérents',         icon: UserCheck },
     { id: 'posts',         label: 'Publications',      icon: Megaphone },
     { id: 'gallery',       label: 'Galerie',           icon: Image },
     { id: 'config',        label: 'Contenu du site',   icon: Settings },
