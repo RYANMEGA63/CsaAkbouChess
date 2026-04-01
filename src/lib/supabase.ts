@@ -68,6 +68,8 @@ export interface Player {
   categorie: string | null
   fide_id: string | null
   role: string | null
+  telephone: string | null
+  niveaux: string | null
   display_order: number
   created_at: string
   updated_at: string

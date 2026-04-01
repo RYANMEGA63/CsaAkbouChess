@@ -4,7 +4,7 @@ import {
   Plus, Pencil, Trash2, X, Save, ImagePlus, Eye,
   Trophy, LogOut, ChevronDown, ChevronUp, FileImage,
   Settings, Image, Megaphone, Loader2,
-  LayoutDashboard, ClipboardList, UserCheck, Building2, Calendar, Search,
+  LayoutDashboard, ClipboardList, UserCheck, Building2, Calendar, Search, Phone,
   BarChart2, Globe, TrendingUp, Lock, Unlock
 } from "lucide-react"
 import { useAuth, useTournaments, usePosts, useGallery, useRegistrations, usePlayers, Registration } from "@/hooks/useSupabase"
@@ -303,6 +303,8 @@ const emptyT = (): Omit<Tournament, 'id' | 'created_at' | 'updated_at'> => ({
   fiches_techniques_urls: [],
   is_past: false, display_order: 0,
   registrations_closed: false,
+  homologue: false,
+  niveaux: "",
 })
 
 const TournamentForm = ({ initial, onSave, onClose }: {
@@ -811,11 +813,17 @@ const PostForm = ({ initial, onSave, onClose }: {
 }
 
 // ── PLAYER FORM ───────────────────────────────────────────────
-const PlayerForm = ({ initial, onSave, onClose }: {
+const PlayerForm = ({ initial, mode: providedMode, onSave, onClose }: {
   initial: Player | null
+  mode: 'athlete' | 'member'
   onSave: (data: Omit<Player, 'id' | 'created_at' | 'updated_at'>) => Promise<void>
   onClose: () => void
 }) => {
+  // Détecter le mode si on est en édition
+  const mode = initial 
+    ? (['joueur', 'athlète'].includes(initial.role?.toLowerCase() || '') ? 'athlete' : 'member')
+    : providedMode;
+
   const [form, setForm] = useState({
     nom:            initial?.nom            || '',
     prenom:         initial?.prenom         || '',
@@ -823,8 +831,18 @@ const PlayerForm = ({ initial, onSave, onClose }: {
     categorie:      initial?.categorie      || '',
     fide_id:        initial?.fide_id        || '',
     role:           initial?.role           || '',
+    telephone:      initial?.telephone      || '',
+    niveaux:        initial?.niveaux        || '',
     display_order:  initial?.display_order  || 0,
   })
+
+  // Pre-remplissage pour les nouveaux athlètes
+  useEffect(() => {
+    if (!initial && mode === 'athlete' && !form.role) {
+      setForm(f => ({ ...f, role: 'Athlète' }))
+    }
+  }, [initial, mode])
+
   const [saving, setSaving] = useState(false)
   const set = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }))
 
@@ -847,8 +865,10 @@ const PlayerForm = ({ initial, onSave, onClose }: {
         <div className="flex items-center justify-between px-6 py-4 border-b shrink-0 text-white"
           style={{ background: "linear-gradient(135deg, hsl(var(--chess-blue-dark)), hsl(var(--chess-blue)))" }}>
           <div>
-            <h2 className="font-bold text-base">{initial ? "Modifier le membre" : "Nouveau membre"}</h2>
-            <p className="text-white/50 text-xs mt-0.5">Renseignez les informations du membre</p>
+            <h2 className="font-bold text-base">
+              {initial ? "Modifier" : "Ajouter"} {mode === 'athlete' ? "un athlète" : "un membre du bureau"}
+            </h2>
+            <p className="text-white/50 text-xs mt-0.5">Renseignez les informations essentielles</p>
           </div>
           <button onClick={onClose} className="text-white/50 hover:text-white p-1"><X size={20} /></button>
         </div>
@@ -862,18 +882,37 @@ const PlayerForm = ({ initial, onSave, onClose }: {
             <label className={labelCls}>Date de naissance</label>
             <input type="text" placeholder="JJ/MM/AAAA" className={inputCls} value={form.date_naissance || ''} onChange={e => set('date_naissance', e.target.value)} />
           </div>
-          <div>
-            <label className={labelCls}>Catégorie</label>
-            <input className={inputCls} placeholder="Ex: Poussin, Senior, U14..." value={form.categorie || ''} onChange={e => set('categorie', e.target.value)} />
-          </div>
+          {mode === 'athlete' && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Catégorie</label>
+                <input className={inputCls} placeholder="Ex: U14..." value={form.categorie || ''} onChange={e => set('categorie', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>Niveau</label>
+                <input className={inputCls} placeholder="Ex: Régional..." value={form.niveaux || ''} onChange={e => set('niveaux', e.target.value)} />
+              </div>
+            </div>
+          )}
+          
           <div>
             <label className={labelCls}>ID FIDE</label>
             <input className={inputCls} placeholder="Numéro ID FIDE" value={form.fide_id || ''} onChange={e => set('fide_id', e.target.value)} />
           </div>
-          <div>
-            <label className={labelCls}>Fonction / Rôle</label>
-            <input className={inputCls} placeholder="Ex: Président, Trésorier, Joueur..." value={form.role || ''} onChange={e => set('role', e.target.value)} />
-          </div>
+
+          {mode === 'member' && (
+            <>
+              <div>
+                <label className={labelCls}>Fonction / Rôle</label>
+                <input className={inputCls} placeholder="Ex: Président, Trésorier..." value={form.role || ''} onChange={e => set('role', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>Numéro de Téléphone</label>
+                <input className={inputCls} placeholder="Ex: 0555 00 00 00" value={form.telephone || ''} onChange={e => set('telephone', e.target.value)} />
+              </div>
+            </>
+          )}
+
           <div>
             <label className={labelCls}>Ordre d'affichage</label>
             <input type="number" className={inputCls} value={form.display_order} onChange={e => set('display_order', +e.target.value)} />
@@ -894,36 +933,65 @@ const PlayerForm = ({ initial, onSave, onClose }: {
   )
 }
 
-// ── PLAYERS PANEL ─────────────────────────────────────────────
+// ── ATHLETES PANEL ─────────────────────────────────────────────
 const PlayersPanel = ({ players, loading, onEdit, onDelete, onNew }: {
   players: Player[]
   loading: boolean
   onEdit: (p: Player) => void
   onDelete: (id: string) => void
-  onNew: () => void
+  onNew: (mode: 'athlete' | 'member') => void
 }) => {
   const [q, setQ] = useState('')
   const [delConf, setDelConf] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'bureau' | 'athletes'>('bureau')
 
-  const filtered = players.filter(p => 
+  // Filtrage : Membres du bureau (rôle spécifique) vs Athlètes (sans rôle ou 'Athlète'/'Joueur')
+  const bureauMembers = players.filter(p => p.role && p.role.trim() !== '' && !['joueur', 'athlète'].includes(p.role.toLowerCase()))
+  const clubAthletes   = players.filter(p => !p.role || p.role.trim() === '' || ['joueur', 'athlète'].includes(p.role.toLowerCase()))
+
+  const currentList = activeTab === 'bureau' ? bureauMembers : clubAthletes
+
+  const filtered = currentList.filter(p => 
     `${p.nom} ${p.prenom}`.toLowerCase().includes(q.toLowerCase()) || 
-    p.fide_id?.toLowerCase().includes(q.toLowerCase())
+    p.fide_id?.toLowerCase().includes(q.toLowerCase()) ||
+    p.telephone?.toLowerCase().includes(q.toLowerCase()) ||
+    p.niveaux?.toLowerCase().includes(q.toLowerCase())
   )
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h2 className="text-xl font-bold">Gestion des membres</h2>
-        <button onClick={onNew} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all hover:scale-[1.02] active:scale-[0.98]"
-          style={{ background: "linear-gradient(135deg, hsl(var(--chess-blue-dark)), hsl(var(--chess-blue)))" }}>
-          <Plus size={16} /> Ajouter un membre
+        <div>
+          <h2 className="text-xl font-bold">Membres & Athlètes</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">{players.length} personne{players.length > 1 ? 's' : ''} au total</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => onNew('member')} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:scale-[1.02] active:scale-[0.98] shadow-sm hover:shadow-md"
+            style={{ background: "linear-gradient(135deg, hsl(var(--chess-blue-dark)), hsl(var(--chess-blue)))" }}>
+            <Plus size={16} /> Membre Bureau
+          </button>
+          <button onClick={() => onNew('athlete')} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:scale-[1.02] active:scale-[0.98] shadow-sm hover:shadow-md"
+            style={{ background: "linear-gradient(135deg, #f59e0b, #d97706)" }}>
+            <Plus size={16} /> Athlète
+          </button>
+        </div>
+      </div>
+
+      <div className="flex p-1 bg-muted rounded-2xl w-fit">
+        <button onClick={() => { setActiveTab('bureau'); setQ('') }}
+          className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'bureau' ? 'bg-background shadow-sm text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
+          Bureau du Club
+        </button>
+        <button onClick={() => { setActiveTab('athletes'); setQ('') }}
+          className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'athletes' ? 'bg-background shadow-sm text-primary' : 'text-muted-foreground hover:text-foreground'}`}>
+          Athlètes du Club
         </button>
       </div>
 
       <div className="relative max-w-sm">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <input type="text" placeholder="Rechercher un membre..." value={q} onChange={e => setQ(e.target.value)}
-          className="w-full pl-8 pr-4 py-2 text-sm border rounded-xl bg-background outline-none focus:ring-2 focus:ring-primary/20" />
+        <input type="text" placeholder={`Rechercher un ${activeTab === 'bureau' ? 'membre' : 'athlète'}...`} value={q} onChange={e => setQ(e.target.value)}
+          className="w-full pl-9 pr-4 py-2.5 text-sm border rounded-xl bg-background outline-none transition-shadow focus:ring-2 focus:ring-primary/20" />
       </div>
 
       {loading ? (
@@ -931,49 +999,131 @@ const PlayersPanel = ({ players, loading, onEdit, onDelete, onNew }: {
       ) : filtered.length === 0 ? (
         <div className="bg-card border rounded-2xl p-12 text-center text-muted-foreground">
           <UserCheck size={28} className="mx-auto mb-3 opacity-30" />
-          <p className="text-sm">{q ? "Aucun membre ne correspond à votre recherche" : "Aucun membre enregistré"}</p>
+          <p className="text-sm">{q ? "Aucun résultat trouvé" : "Liste vide"}</p>
         </div>
       ) : (
-        <div className="bg-card border rounded-2xl overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead>
-                <tr className="bg-muted/50 border-b">
-                  <th className="px-4 py-3 font-semibold text-muted-foreground">Membre</th>
-                  <th className="px-4 py-3 font-semibold text-muted-foreground">Fonction</th>
-                  <th className="px-4 py-3 font-semibold text-muted-foreground">Catégorie</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {filtered.map(p => (
-                  <tr key={p.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3">
-                      <p className="font-bold">{p.nom} {p.prenom}</p>
-                      {p.fide_id && <span className="text-[10px] text-muted-foreground font-mono">FIDE: {p.fide_id}</span>}
-                    </td>
-                    <td className="px-4 py-3">
-                      {p.role ? <span className="text-xs font-semibold text-primary">{p.role}</span> : <span className="text-xs text-muted-foreground italic">Joueur</span>}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => onEdit(p)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"><Pencil size={14} /></button>
-                        {delConf === p.id ? (
-                          <div className="flex gap-1 animate-in fade-in zoom-in duration-200">
-                            <button onClick={() => { onDelete(p.id); toast.success("Membre supprimé") }} className="px-2 py-1 bg-red-500 text-white rounded-lg text-[10px]">Oui</button>
-                            <button onClick={() => setDelConf(null)} className="px-2 py-1 border rounded-lg text-[10px]">Non</button>
-                          </div>
-                        ) : (
-                          <button onClick={() => setDelConf(p.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
-                        )}
+        <>
+          {/* Mobile View */}
+          <div className="grid gap-3 sm:hidden">
+            {filtered.map(p => (
+              <div key={p.id} className="bg-card border rounded-xl p-4 shadow-sm space-y-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="font-bold text-base leading-snug">{p.nom} {p.prenom}</p>
+                    <div className="flex gap-2 mt-1">
+                      {p.role && <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary/10 text-primary">{p.role}</span>}
+                      {p.categorie && activeTab === 'athletes' && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700">{p.categorie}</span>}
+                      {p.niveaux && activeTab === 'athletes' && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-chess-blue/10 text-chess-blue">{p.niveaux}</span>}
+                    </div>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <button onClick={() => onEdit(p)} className="p-2 rounded-lg bg-muted text-muted-foreground transition-colors hover:text-foreground"><Pencil size={15} /></button>
+                    {delConf === p.id ? (
+                      <div className="flex gap-1 animate-in slide-in-from-right-2">
+                        <button onClick={() => { onDelete(p.id); toast.success("Supprimé") }} className="px-3 py-1 bg-red-500 text-white rounded-lg text-xs font-bold shadow-sm">Oui</button>
+                        <button onClick={() => setDelConf(null)} className="px-3 py-1 border rounded-lg text-xs hover:bg-muted transition-colors">Non</button>
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    ) : (
+                      <button onClick={() => setDelConf(p.id)} className="p-2 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors"><Trash2 size={15} /></button>
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[10px] text-muted-foreground">
+                  {activeTab === 'bureau' && p.telephone && (
+                    <div className="flex items-center gap-1.5 bg-muted/40 px-2 py-1 rounded-md">
+                      <Phone size={10} className="text-green-600" /> {p.telephone}
+                    </div>
+                  )}
+                  {p.fide_id && (
+                    <div className="flex items-center gap-1.5 bg-muted/40 px-2 py-1 rounded-md">
+                      <Trophy size={10} className="text-amber-500" /> ID: {p.fide_id}
+                    </div>
+                  )}
+                  {activeTab === 'athletes' && p.date_naissance && (
+                    <div className="flex items-center gap-1.5 bg-muted/40 px-2 py-1 rounded-md col-span-2">
+                      <Calendar size={10} /> Né(e) le : {p.date_naissance}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
-        </div>
+
+          {/* Desktop View */}
+          <div className="hidden sm:block bg-card border rounded-2xl overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left border-collapse">
+                <thead>
+                  <tr className="bg-muted/50 border-b border-border">
+                    <th className="px-5 py-4 font-bold text-xs uppercase tracking-wider text-muted-foreground">Nom / FIDE</th>
+                    {activeTab === 'bureau' ? (
+                      <>
+                        <th className="px-5 py-4 font-bold text-xs uppercase tracking-wider text-muted-foreground">Fonction</th>
+                        <th className="px-5 py-4 font-bold text-xs uppercase tracking-wider text-muted-foreground">Téléphone</th>
+                        <th className="px-5 py-4 font-bold text-xs uppercase tracking-wider text-muted-foreground">Naissance</th>
+                      </>
+                    ) : (
+                      <>
+                        <th className="px-5 py-4 font-bold text-xs uppercase tracking-wider text-muted-foreground">Catégorie</th>
+                        <th className="px-5 py-4 font-bold text-xs uppercase tracking-wider text-muted-foreground space-x-1">Niveau</th>
+                        <th className="px-5 py-4 font-bold text-xs uppercase tracking-wider text-muted-foreground">Naissance</th>
+                      </>
+                    )}
+                    <th className="px-5 py-4 font-bold text-xs uppercase tracking-wider text-muted-foreground text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filtered.map(p => (
+                    <tr key={p.id} className="group hover:bg-muted/30 transition-colors">
+                      <td className="px-5 py-3.5">
+                        <p className="font-bold text-sm group-hover:text-primary transition-colors">{p.nom} {p.prenom}</p>
+                        {p.fide_id && <span className="text-[10px] text-muted-foreground font-mono flex items-center gap-1 mt-0.5"><Trophy size={9} className="text-amber-500" /> ID: {p.fide_id}</span>}
+                      </td>
+                      {activeTab === 'bureau' ? (
+                        <>
+                          <td className="px-5 py-3.5">
+                            <span className="text-xs font-semibold px-2 py-1 rounded-md bg-primary/5 text-primary border border-primary/10 whitespace-nowrap">{p.role}</span>
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <span className="text-xs font-medium text-muted-foreground flex items-center gap-2"><Phone size={11} className="text-green-600" /> {p.telephone || '—'}</span>
+                          </td>
+                          <td className="px-5 py-3.5 text-xs text-muted-foreground">
+                            {p.date_naissance || '—'}
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-5 py-3.5">
+                            {p.categorie ? <span className="text-xs font-medium px-2 py-1 rounded-md bg-orange-50 text-orange-600 border border-orange-100">{p.categorie}</span> : <span className="text-xs text-muted-foreground opacity-30">—</span>}
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <span className="text-xs font-bold text-chess-blue">{p.niveaux || '—'}</span>
+                          </td>
+                          <td className="px-5 py-3.5 text-xs text-muted-foreground">
+                            {p.date_naissance || '—'}
+                          </td>
+                        </>
+                      )}
+                      <td className="px-5 py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5 opacity-40 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => onEdit(p)} className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-all"><Pencil size={14} /></button>
+                          {delConf === p.id ? (
+                            <div className="flex gap-1 animate-in fade-in zoom-in duration-200">
+                              <button onClick={() => { onDelete(p.id); toast.success("Supprimé") }} className="px-2 py-1 bg-red-500 text-white rounded text-[10px] font-bold">Oui</button>
+                              <button onClick={() => setDelConf(null)} className="px-2 py-1 border rounded text-[10px]">Non</button>
+                            </div>
+                          ) : (
+                            <button onClick={() => setDelConf(p.id)} className="p-2 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-500 transition-all"><Trash2 size={14} /></button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )
@@ -2282,8 +2432,9 @@ const Admin = () => {
   const { data: allTournaments, loading: tLoading, create: createT, update: updateT, remove: removeT } = useTournaments()
   const { data: posts, loading: pLoading, create: createPost, update: updatePost, remove: removePost } = usePosts()
   const { data: allRegistrations, loading: rLoading, remove: removeReg } = useRegistrations()
-  const [editPlayer, setEditPlayer] = useState<Player | null | 'new'>(null)
   const { data: allPlayers, loading: playersLoading, create: createPlayer, update: updatePlayer, remove: removePlayer } = usePlayers()
+  const [editPlayer, setEditPlayer] = useState<Player | null | 'new'>(null)
+  const [playerFormMode, setPlayerFormMode] = useState<'athlete' | 'member'>('athlete')
 
   const [tSearch, setTSearch] = useState('')
   const [pSearch, setPSearch] = useState('')
@@ -2536,7 +2687,7 @@ const Admin = () => {
               loading={playersLoading}
               onEdit={setEditPlayer}
               onDelete={removePlayer}
-              onNew={() => setEditPlayer('new')}
+              onNew={(mode) => { setPlayerFormMode(mode); setEditPlayer('new') }}
             />
           )}
 
@@ -2546,6 +2697,7 @@ const Admin = () => {
       {editPlayer !== null && (
         <PlayerForm
           initial={editPlayer === 'new' ? null : editPlayer}
+          mode={playerFormMode}
           onSave={async (data) => {
             if (editPlayer && editPlayer !== 'new') await updatePlayer(editPlayer.id, data)
             else await createPlayer(data)

@@ -2,32 +2,63 @@ import Layout from "@/components/Layout";
 import Reveal from "@/components/Reveal";
 import { useSiteConfig } from "@/lib/SiteConfigContext";
 import { usePlayers } from "@/hooks/useSupabase";
-import { useState } from "react";
-import { Search, User } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Search, User, Trophy, Calendar, Briefcase, Users, Filter, ChevronDown } from "lucide-react";
 import aboutImage from "@/assets/about-chess.jpg";
 import tournamentImage from "@/assets/tournament.jpg";
 
 const About = () => {
   const { get } = useSiteConfig();
   const { data: players, loading: loadingPlayers } = usePlayers();
+  
   const [searchTerm, setSearchTerm] = useState("");
+  const [activeTab, setActiveTab] = useState<'bureau' | 'athletes'>('bureau');
+  const [filterCat, setFilterCat] = useState("all");
+  const [filterLevel, setFilterLevel] = useState("all");
 
   const heroTitle      = String(get('about_hero_title',  ''));
   const storyTitle     = String(get('about_story_title', ''));
   const storyParagraphs = (get('about_story_paragraphs', []) as string[]);
-  const venueTitle     = String(get('about_venue_title',    ''));
-  const venueSubtitle  = String(get('about_venue_subtitle', ''));
-  const venueText      = String(get('about_venue_text',     ''));
   const storyImageUrl  = get('about_story_image_url', null) as string | null;
-  const venueImageUrl  = get('about_venue_image_url', null) as string | null;
-  const values         = (get('values', []) as { title: string; desc: string }[]);
   const clubName = String(get('club_name', ''));
   const founded  = String(get('club_founded', ''));
 
-  const filteredPlayers = players.filter(p => 
-    `${p.nom} ${p.prenom}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (p.fide_id?.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  // Séparation Bureau vs Athlètes
+  const bureauMembers = useMemo(() => 
+    players.filter(p => p.role && p.role.trim() !== '' && !['joueur', 'athlète'].includes(p.role.toLowerCase())),
+  [players]);
+
+  const clubAthletes = useMemo(() => 
+    players.filter(p => !p.role || p.role.trim() === '' || ['joueur', 'athlète'].includes(p.role.toLowerCase())),
+  [players]);
+
+  // Options uniques pour les filtres
+  const categories = useMemo(() => 
+    Array.from(new Set(clubAthletes.map(p => p.categorie).filter(Boolean))).sort(),
+  [clubAthletes]);
+
+  const levels = useMemo(() => 
+    Array.from(new Set(clubAthletes.map(p => p.niveaux).filter(Boolean))).sort(),
+  [clubAthletes]);
+
+  const currentList = activeTab === 'bureau' ? bureauMembers : clubAthletes;
+
+  // Filtrage final
+  const filteredData = useMemo(() => {
+    return currentList.filter(p => {
+      const matchSearch = 
+        `${p.nom} ${p.prenom}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.fide_id?.toLowerCase().includes(searchTerm.toLowerCase()));
+      
+      if (activeTab === 'athletes') {
+        const matchCat = filterCat === "all" || p.categorie === filterCat;
+        const matchLevel = filterLevel === "all" || p.niveaux === filterLevel;
+        return matchSearch && matchCat && matchLevel;
+      }
+      
+      return matchSearch;
+    });
+  }, [currentList, searchTerm, filterCat, filterLevel, activeTab]);
 
   return (
     <Layout>
@@ -45,7 +76,7 @@ const About = () => {
         </div>
       </section>
 
-      {/* Story — photo gauche, texte droite */}
+      {/* Story */}
       <section className="py-24 md:py-32">
         <div className="container">
           <div className="grid items-center gap-16 lg:grid-cols-2 lg:gap-24">
@@ -83,150 +114,176 @@ const About = () => {
         </div>
       </section>
 
-      {/* Valeurs */}
-      <section className="py-24 md:py-32 relative overflow-hidden"
-        style={{ background: "linear-gradient(135deg, hsl(var(--chess-blue-dark)), hsl(var(--chess-blue)))" }}>
-        <div className="absolute inset-0 opacity-[0.04] pointer-events-none"
-          style={{ backgroundImage: "radial-gradient(circle at 1.5px 1.5px, white 1px, transparent 0)", backgroundSize: "40px 40px" }} />
-        <div className="container relative">
-          <Reveal>
-            <h2 className="text-3xl font-bold text-white mb-14 text-center md:text-4xl">Nos valeurs</h2>
-          </Reveal>
-          <div className="grid gap-5 md:grid-cols-3">
-            {Array.isArray(values) && values.map((v, i) => (
-              <Reveal key={i} delay={i * 100}>
-                <div className="rounded-2xl p-8 border transition-all hover:-translate-y-1 duration-300"
-                  style={{ background: "hsl(var(--chess-blue-mid)/0.4)", borderColor: "hsl(var(--chess-gold)/0.15)" }}>
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-5"
-                    style={{ background: "hsl(var(--chess-gold)/0.15)" }}>
-                    <span className="text-xl">♟</span>
-                  </div>
-                  <h3 className="text-xl font-semibold mb-3" style={{ color: "hsl(var(--chess-gold))" }}>{v.title}</h3>
-                  <p className="text-sm text-white/55 leading-relaxed">{v.desc}</p>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Venue — texte gauche, photo droite */}
-      <section className="py-24 md:py-32">
-        <div className="container">
-          <div className="grid items-center gap-16 lg:grid-cols-2 lg:gap-24">
-            <Reveal direction="left">
-              <div>
-                <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest mb-4 px-3 py-1.5 rounded-full"
-                  style={{ background: "hsl(var(--chess-gold)/0.1)", color: "hsl(var(--chess-gold-dark))" }}>
-                  {venueSubtitle}
-                </div>
-                <h2 className="text-3xl font-bold mb-6 md:text-4xl">{venueTitle}</h2>
-                <p className="text-muted-foreground leading-relaxed">{venueText}</p>
-              </div>
-            </Reveal>
-            <Reveal direction="right">
-              <div className="relative">
-                <div className="absolute -inset-4 rounded-3xl opacity-15 blur-2xl pointer-events-none"
-                  style={{ background: "linear-gradient(135deg, hsl(var(--chess-gold)), hsl(var(--chess-blue)))" }} />
-                <img
-                  src={venueImageUrl || tournamentImage}
-                  alt="Salle du club"
-                  className="relative rounded-2xl shadow-2xl w-full object-cover"
-                  style={{ aspectRatio: "4/3" }}
-                />
-              </div>
-            </Reveal>
-          </div>
-        </div>
-      </section>
-
-      {/* Players List */}
+      {/* Members & Athletes Section */}
       <section className="py-24 md:py-32 bg-muted/30">
         <div className="container">
           <Reveal>
             <div className="text-center max-w-3xl mx-auto mb-16">
-              <h2 className="text-3xl font-bold mb-6 md:text-4xl">Nos Membres</h2>
-              <p className="text-muted-foreground">Retrouvez la liste des membres passionnés qui font la vie de notre club.</p>
+              <h2 className="text-3xl font-bold mb-4 md:text-4xl">La Vie du Club</h2>
+              <p className="text-muted-foreground">Découvrez les visages qui animent le {clubName}.</p>
+              
+              {/* Navigation Tabs */}
+              <div className="flex justify-center mt-10">
+                <div className="inline-flex p-1 bg-muted rounded-2xl border shadow-sm">
+                  <button 
+                    onClick={() => { setActiveTab('bureau'); setSearchTerm(""); setFilterCat("all"); setFilterLevel("all"); }}
+                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'bureau' ? 'bg-background shadow-md text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                  >
+                    <Briefcase size={16} /> Le Bureau
+                  </button>
+                  <button 
+                    onClick={() => { setActiveTab('athletes'); setSearchTerm(""); }}
+                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeTab === 'athletes' ? 'bg-background shadow-md text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                  >
+                    <Users size={16} /> Nos Athlètes
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Reveal>
+
+          {/* Search & Filters */}
+          <Reveal>
+            <div className="mb-10 space-y-4">
+              <div className="flex flex-col md:flex-row gap-4 items-center justify-center max-w-5xl mx-auto">
+                {/* Search Bar */}
+                <div className="relative flex-1 w-full">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+                  <input 
+                    type="text" 
+                    placeholder={`Rechercher un ${activeTab === 'bureau' ? 'membre' : 'athlète'} ou ID FIDE...`} 
+                    className="w-full pl-12 pr-4 py-3.5 rounded-2xl border bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all shadow-sm text-sm"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+
+                {activeTab === 'athletes' && (
+                  <div className="flex gap-3 w-full md:w-auto">
+                    {/* Category Filter */}
+                    <div className="relative flex-1 md:w-48">
+                      <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
+                      <select 
+                        className="w-full pl-10 pr-10 py-3.5 rounded-2xl border bg-background appearance-none focus:ring-2 focus:ring-primary/20 outline-none transition-all shadow-sm text-sm font-medium"
+                        value={filterCat}
+                        onChange={(e) => setFilterCat(e.target.value)}
+                      >
+                        <option value="all">Catégories</option>
+                        {categories.map(c => <option key={c!} value={c!}>{c}</option>)}
+                      </select>
+                      <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" size={14} />
+                    </div>
+
+                    {/* Level Filter */}
+                    <div className="relative flex-1 md:w-48">
+                      <Trophy className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
+                      <select 
+                        className="w-full pl-10 pr-10 py-3.5 rounded-2xl border bg-background appearance-none focus:ring-2 focus:ring-primary/20 outline-none transition-all shadow-sm text-sm font-medium"
+                        value={filterLevel}
+                        onChange={(e) => setFilterLevel(e.target.value)}
+                      >
+                        <option value="all">Niveaux</option>
+                        {levels.map(l => <option key={l!} value={l!}>{l}</option>)}
+                      </select>
+                      <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" size={14} />
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Filter Bagdes (Active summary) */}
+              {(filterCat !== "all" || filterLevel !== "all" || searchTerm !== "") && activeTab === 'athletes' && (
+                <div className="flex justify-center flex-wrap gap-2 animate-in fade-in slide-in-from-top-1">
+                  <button onClick={() => { setSearchTerm(""); setFilterCat("all"); setFilterLevel("all"); }} className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground hover:text-primary transition-colors">
+                    Réinitialiser les filtres
+                  </button>
+                </div>
+              )}
             </div>
           </Reveal>
 
           <Reveal>
-            <div className="mb-8 relative max-w-md mx-auto">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-              <input 
-                type="text" 
-                placeholder="Rechercher un membre ou ID Fide..." 
-                className="w-full pl-12 pr-4 py-3 rounded-2xl border bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all shadow-sm"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-          </Reveal>
-
-          <Reveal>
-            <div className="bg-card rounded-3xl border shadow-xl overflow-hidden">
+            <div className="bg-card rounded-3xl border shadow-2xl overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
+                <table className="w-full text-left border-collapse min-w-[800px]">
                   <thead>
                     <tr className="border-b bg-muted/50">
-                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Membre</th>
-                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Fonction</th>
-                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Catégorie</th>
-                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">Né(e) le</th>
-                      <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-muted-foreground text-right">ID FIDE</th>
+                      <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-muted-foreground">Nom & Prénom</th>
+                      {activeTab === 'bureau' ? (
+                        <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-muted-foreground">Fonction</th>
+                      ) : (
+                        <>
+                          <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-muted-foreground">Catégorie</th>
+                          <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-muted-foreground">Niveau</th>
+                        </>
+                      )}
+                      <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-muted-foreground text-center">Né(e) le</th>
+                      <th className="px-8 py-5 text-xs font-bold uppercase tracking-wider text-muted-foreground text-right">ID FIDE</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y">
+                  <tbody className="divide-y divide-border">
                     {loadingPlayers ? (
                       [...Array(5)].map((_, i) => (
                         <tr key={i} className="animate-pulse">
-                          <td className="px-6 py-6"><div className="h-4 bg-muted rounded w-32" /></td>
-                          <td className="px-6 py-6"><div className="h-3 bg-muted rounded w-24" /></td>
-                          <td className="px-6 py-6"><div className="h-3 bg-muted rounded w-20" /></td>
-                          <td className="px-6 py-6"><div className="h-3 bg-muted rounded w-24" /></td>
-                          <td className="px-6 py-6"><div className="h-4 bg-muted rounded w-16 ml-auto" /></td>
+                          <td className="px-8 py-7"><div className="h-5 bg-muted rounded w-40" /></td>
+                          <td className="px-8 py-7"><div className="h-4 bg-muted rounded w-28" /></td>
+                          <td className="px-8 py-7 text-center"><div className="h-4 bg-muted rounded w-24 mx-auto" /></td>
+                          <td className="px-8 py-7"><div className="h-5 bg-muted rounded w-20 ml-auto" /></td>
                         </tr>
                       ))
-                    ) : filteredPlayers.length > 0 ? (
-                      filteredPlayers.map((p) => (
+                    ) : filteredData.length > 0 ? (
+                      filteredData.map((p) => (
                         <tr key={p.id} className="hover:bg-muted/30 transition-colors group">
-                          <td className="px-6 py-5">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all">
-                                <User size={18} />
+                          <td className="px-8 py-6">
+                            <div className="flex items-center gap-4">
+                              <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all shadow-inner">
+                                <User size={22} />
                               </div>
-                              <div>
-                                <p className="font-bold text-foreground">{p.nom} {p.prenom}</p>
-                                {p.fide_id && <p className="text-[10px] text-muted-foreground font-mono">FIDE: {p.fide_id}</p>}
-                              </div>
+                              <p className="font-bold text-lg text-foreground tracking-tight whitespace-nowrap">{p.nom} {p.prenom}</p>
                             </div>
                           </td>
-                          <td className="px-6 py-5">
-                            {p.role ? (
-                              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary uppercase">
+                          <td className="px-8 py-6">
+                            {activeTab === 'bureau' ? (
+                              <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-primary/10 text-primary border border-primary/20 uppercase tracking-wide whitespace-nowrap">
                                 {p.role}
                               </span>
                             ) : (
-                              <span className="text-xs text-muted-foreground italic">Joueur</span>
+                              <div className="flex items-center gap-2">
+                                <span className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-100 whitespace-nowrap">
+                                  {p.categorie || '—'}
+                                </span>
+                              </div>
                             )}
                           </td>
-                          <td className="px-6 py-5">
-                            <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
-                              {p.categorie || 'Non classé'}
-                            </span>
+                          {activeTab === 'athletes' && (
+                            <td className="px-8 py-6">
+                              <span className="text-sm font-bold text-chess-blue">
+                                {p.niveaux || '—'}
+                              </span>
+                            </td>
+                          )}
+                          <td className="px-8 py-6 text-center">
+                            <div className="inline-flex items-center gap-2 text-sm text-muted-foreground font-medium bg-muted/30 px-3 py-1.5 rounded-lg whitespace-nowrap">
+                              <Calendar size={14} className="opacity-50" />
+                              {p.date_naissance || '—'}
+                            </div>
                           </td>
-                          <td className="px-6 py-5 text-sm text-muted-foreground">
-                            {p.date_naissance ? new Date(p.date_naissance).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}
-                          </td>
-                          <td className="px-6 py-5 text-right font-mono text-sm font-semibold text-primary">
-                            {p.fide_id || '—'}
+                          <td className="px-8 py-6 text-right">
+                            <div className="inline-flex items-center gap-2 text-sm font-mono font-bold text-primary bg-primary/5 px-3 py-1.5 rounded-lg border border-primary/10">
+                              <Trophy size={14} className="text-amber-500" />
+                              {p.fide_id || '—'}
+                            </div>
                           </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={5} className="px-6 py-20 text-center text-muted-foreground">
-                          Aucun membre trouvé pour "{searchTerm}"
+                        <td colSpan={5} className="px-8 py-24 text-center text-muted-foreground bg-muted/10">
+                          <div className="flex flex-col items-center">
+                            <Users size={48} className="opacity-10 mb-4" />
+                            <p className="text-lg">Aucun résultat trouvé pour votre recherche</p>
+                            <p className="text-xs opacity-60">Essayez de modifier vos filtres ou la recherche</p>
+                          </div>
                         </td>
                       </tr>
                     )}

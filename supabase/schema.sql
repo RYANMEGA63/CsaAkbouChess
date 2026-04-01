@@ -114,7 +114,7 @@ create table registrations (
   nom_club      text,
   responsable   text,
   telephone     text,
-  date_naissance date,
+  date_naissance text,
   joueurs       jsonb default '[]',  -- Pour clubs : [{nom, prenom, fideId, dateNaissance}]
   created_at    timestamptz default now()
 );
@@ -134,7 +134,7 @@ create table players (
   id             uuid primary key default uuid_generate_v4(),
   nom            text not null,
   prenom         text not null,
-  date_naissance date,
+  date_naissance text,
   categorie      text,
   fide_id        text,
   role           text,
