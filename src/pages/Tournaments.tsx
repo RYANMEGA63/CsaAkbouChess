@@ -224,7 +224,7 @@ const TournamentModal = ({ tournament, onClose, onOpenLightbox }: {
                   </div>
                   <div><label className="text-xs font-medium mb-1 block">FIDE ID <span className="text-muted-foreground">(optionnel)</span></label><input className={inputCls} placeholder="Ex : 12345678" value={soloForm.fideId} onChange={e => setSoloForm({ ...soloForm, fideId: e.target.value })} /></div>
                   <div><label className="text-xs font-medium mb-1 block">Club</label><input className={inputCls} value={soloForm.club} onChange={e => setSoloForm({ ...soloForm, club: e.target.value })} /></div>
-                  <div><label className="text-xs font-medium mb-1 block">Date de naissance *</label><input type="date" className={inputCls} value={soloForm.dateNaissance} onChange={e => setSoloForm({ ...soloForm, dateNaissance: e.target.value })} /></div>
+                  <div><label className="text-xs font-medium mb-1 block">Date de naissance *</label><input type="text" placeholder="JJ/MM/AAAA" className={inputCls} value={soloForm.dateNaissance} onChange={e => setSoloForm({ ...soloForm, dateNaissance: e.target.value })} /></div>
                   <button onClick={handleSubmit} disabled={submitting || !soloForm.nom || !soloForm.prenom || !soloForm.dateNaissance}
                     className="w-full rounded-xl py-3.5 font-bold text-sm text-white flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.99]"
                     style={{ background: "linear-gradient(135deg, hsl(var(--chess-blue-dark)), hsl(var(--chess-blue)))" }}>
@@ -259,7 +259,7 @@ const TournamentModal = ({ tournament, onClose, onOpenLightbox }: {
                           <div className="flex gap-1.5 items-center pl-[26px]">
                             <input placeholder="FIDE ID" value={j.fideId} onChange={e => updateJoueur(i, "fideId", e.target.value)} className="w-24 border rounded-lg px-2 py-1.5 text-xs bg-background focus:outline-none" />
                             <div className="flex-1 relative">
-                              <input type="date" value={j.dateNaissance} onChange={e => updateJoueur(i, "dateNaissance", e.target.value)} className={`w-full border rounded-lg px-2 py-1.5 text-xs bg-background focus:outline-none ${!j.dateNaissance ? "border-orange-300" : "border-border"}`} />
+                              <input type="text" placeholder="JJ/MM/AAAA" value={j.dateNaissance} onChange={e => updateJoueur(i, "dateNaissance", e.target.value)} className={`w-full border rounded-lg px-2 py-1.5 text-xs bg-background focus:outline-none ${!j.dateNaissance ? "border-orange-300" : "border-border"}`} />
                               {!j.dateNaissance && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-orange-400 font-semibold pointer-events-none">requis</span>}
                             </div>
                           </div>

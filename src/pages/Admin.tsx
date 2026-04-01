@@ -860,7 +860,7 @@ const PlayerForm = ({ initial, onSave, onClose }: {
           </div>
           <div>
             <label className={labelCls}>Date de naissance</label>
-            <input type="date" className={inputCls} value={form.date_naissance || ''} onChange={e => set('date_naissance', e.target.value)} />
+            <input type="text" placeholder="JJ/MM/AAAA" className={inputCls} value={form.date_naissance || ''} onChange={e => set('date_naissance', e.target.value)} />
           </div>
           <div>
             <label className={labelCls}>Catégorie</label>
